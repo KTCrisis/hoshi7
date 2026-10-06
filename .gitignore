@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+# the runs stay local (they grow fast); the ladder's results, one line per run, are kept
+runs/*
+!runs/ladder/
+runs/ladder/*
+!runs/ladder/results.jsonl
+# runs played before 57fa9b5 (agents blind to their own refusals): archived, their results kept
+!runs/pre-fix/
+runs/pre-fix/*
+!runs/pre-fix/ladder/
+runs/pre-fix/ladder/*
+!runs/pre-fix/ladder/results.jsonl
+*.egg-info/

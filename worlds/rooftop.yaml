@@ -1,0 +1,43 @@
+# A rooftop garden above a city that never sleeps. Same layout as the other
+# two planes, so a run measures the plane and the goal, not the map.
+name: rooftop
+plane: cyber
+max_energy: 30
+map: |
+  ~~~~............
+  ~~~.....##......
+  ~~......#...^^..
+  ~.....,,,,,,....
+  ......,,,,,,..#.
+  ......,,,,,,....
+  ..#...,,,,,,..?.
+  ..........^.....
+  ....##..........
+  ................
+tiles:
+  ".": {name: rooftop deck, walk: true}
+  ",": {name: hydro tray, walk: true, soil: true}
+  "~": {name: coolant cistern, source: true}
+  "#": {name: scrap heap, gather: {yields: {alloy: 2}, energy: 4, becomes: "."}}
+  "^": {name: dead antenna, gather: {yields: {copper_wire: 2}, energy: 3, becomes: "."}}
+  "?": {name: cracked terminal, lore: terminal}
+can: {name: coolant flask, size: 10}
+crops:
+  lumen_moss: {seeds: lumen_spores, days: 4}
+recipes:
+  lumen_spores: {needs: {lumen_moss: 1}, makes: {lumen_spores: 2}}
+  grow_lamp: {needs: {alloy: 2, copper_wire: 1}, makes: {grow_lamp: 1}}
+lore:
+  terminal:
+    text: >-
+      The terminal loops one line in amber: THE ROOF WAS HERE BEFORE THE CITY.
+      Under it, a log of growers, each entry signed by a name you almost know.
+objective: {harvest: lumen_moss, count: 50, by_day: 28}
+# Harvests by the end of day 28 with the goal out of reach, measured with the
+# scripted brains (docs/SPEC.md, Calibration). The goal sits between one agent
+# and a naive pair: one cannot win, two can, two who split the work win easily.
+reference: {solo: 46, pair: 52, split_pair: 60, by_day: 28}
+spawns:
+  - {at: [3, 4], inventory: {lumen_spores: 15}, tools: [can]}
+  - {at: [4, 5], inventory: {lumen_spores: 15}}
+  - {at: [3, 6], inventory: {lumen_spores: 5}}

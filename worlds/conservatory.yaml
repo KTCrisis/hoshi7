@@ -1,0 +1,43 @@
+# A glass and cast-iron conservatory, Paris, the year 1900 never quite ended.
+name: conservatory
+plane: belle-epoque
+max_energy: 30
+map: |
+  ~~~~............
+  ~~~.....##......
+  ~~......#...^^..
+  ~.....,,,,,,....
+  ......,,,,,,..#.
+  ......,,,,,,....
+  ..#...,,,,,,..?.
+  ..........^.....
+  ....##..........
+  ................
+tiles:
+  ".": {name: mosaic floor, walk: true}
+  ",": {name: planter bed, walk: true, soil: true}
+  "~": {name: fountain, source: true}
+  "#": {name: brass vine, gather: {yields: {brass: 2}, energy: 4, becomes: "."}}
+  "^": {name: fallen girder, gather: {yields: {iron: 2}, energy: 3, becomes: "."}}
+  "?": {name: bronze plaque, lore: plaque}
+can: {name: copper watering can, size: 10}
+crops:
+  night_orchid: {seeds: orchid_bulbs, days: 5}
+recipes:
+  orchid_bulbs: {needs: {night_orchid: 1}, makes: {orchid_bulbs: 2}}
+  gas_lantern: {needs: {brass: 2, iron: 1}, makes: {gas_lantern: 1}}
+lore:
+  plaque:
+    text: >-
+      Inaugurated by the Society for Patient Gardens. The orchids here have
+      bloomed through every ending; the gardeners have not. Below, newer
+      names are scratched in, then scratched out.
+objective: {harvest: night_orchid, count: 42, by_day: 28}
+# Harvests by the end of day 28 with the goal out of reach, measured with the
+# scripted brains (docs/SPEC.md, Calibration). The goal sits between one agent
+# and a naive pair: one cannot win, two can, two who split the work win easily.
+reference: {solo: 37, pair: 46, split_pair: 48, by_day: 28}
+spawns:
+  - {at: [3, 4], inventory: {orchid_bulbs: 12}, tools: [can]}
+  - {at: [4, 5], inventory: {orchid_bulbs: 12}}
+  - {at: [3, 6], inventory: {orchid_bulbs: 4}}

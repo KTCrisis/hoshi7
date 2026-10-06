@@ -1,0 +1,42 @@
+# A greenhouse dome on a small asteroid, a long way from the star it circles.
+name: station
+plane: space
+max_energy: 30
+map: |
+  ~~~~............
+  ~~~.....##......
+  ~~......#...^^..
+  ~.....,,,,,,....
+  ......,,,,,,..#.
+  ......,,,,,,....
+  ..#...,,,,,,..?.
+  ..........^.....
+  ....##..........
+  ................
+tiles:
+  ".": {name: hull plating, walk: true}
+  ",": {name: regolith bed, walk: true, soil: true}
+  "~": {name: meltwater tap, source: true}
+  "#": {name: ice block, gather: {yields: {ice: 2}, energy: 4, becomes: "."}}
+  "^": {name: meteorite, gather: {yields: {nickel: 2}, energy: 3, becomes: "."}}
+  "?": {name: old probe, lore: probe}
+can: {name: water bladder, size: 8}
+crops:
+  star_lettuce: {seeds: lettuce_pods, days: 3}
+recipes:
+  lettuce_pods: {needs: {star_lettuce: 1}, makes: {lettuce_pods: 2}}
+  heat_lamp: {needs: {nickel: 2, ice: 1}, makes: {heat_lamp: 1}}
+lore:
+  probe:
+    text: >-
+      A probe older than the station. Its last log stops mid-sentence, "the
+      star will", then plays again from the start, and again.
+objective: {harvest: star_lettuce, count: 62, by_day: 28}
+# Harvests by the end of day 28 with the goal out of reach, measured with the
+# scripted brains (docs/SPEC.md, Calibration). The goal sits between one agent
+# and a naive pair: one cannot win, two can, two who split the work win easily.
+reference: {solo: 56, pair: 68, split_pair: 78, by_day: 28}
+spawns:
+  - {at: [3, 4], inventory: {lettuce_pods: 18}, tools: [can]}
+  - {at: [4, 5], inventory: {lettuce_pods: 18}}
+  - {at: [3, 6], inventory: {lettuce_pods: 6}}

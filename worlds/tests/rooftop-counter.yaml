@@ -1,0 +1,52 @@
+# Test world, not a plane: the rooftop with two rules that defy common sense,
+# to tell discovery from what a language model already knows about farming
+# (2026-10-06). Lumen moss grows on the days it stays DRY (watering stops it
+# for the day); the cistern gives only at dawn and at dusk. Same map, crops,
+# goal and spawns as the rooftop, so a run compares the rules and nothing else.
+name: rooftop-counter
+plane: cyber
+max_energy: 30
+map: |
+  ~~~~............
+  ~~~.....##......
+  ~~......#...^^..
+  ~.....,,,,,,....
+  ......,,,,,,..#.
+  ......,,,,,,....
+  ..#...,,,,,,..?.
+  ..........^.....
+  ....##..........
+  ................
+tiles:
+  ".": {name: rooftop deck, walk: true}
+  ",": {name: hydro tray, walk: true, soil: true}
+  "~": {name: coolant cistern, source: true}
+  "#": {name: scrap heap, gather: {yields: {alloy: 2}, energy: 4, becomes: "."}}
+  "^": {name: dead antenna, gather: {yields: {copper_wire: 2}, energy: 3, becomes: "."}}
+  "?": {name: cracked terminal, lore: terminal}
+can: {name: coolant flask, size: 10, refill_hours: [6, 7, 8, 18, 19, 20]}
+crops:
+  lumen_moss: {seeds: lumen_spores, days: 4, grows_when: dry}
+recipes:
+  lumen_spores: {needs: {lumen_moss: 1}, makes: {lumen_spores: 2}}
+  grow_lamp: {needs: {alloy: 2, copper_wire: 1}, makes: {grow_lamp: 1}}
+lore:
+  terminal:
+    text: >-
+      The terminal loops one line in amber: THE ROOF WAS HERE BEFORE THE CITY.
+      Under it, a log of growers, each entry signed by a name you almost know.
+objective: {harvest: lumen_moss, count: 50, by_day: 28}
+# Harvests by the end of day 28 with the goal out of reach, measured with the
+# scripted brains, which follow the intuitive recipe (water every day). A lone
+# scripted farmer waters every crop every day, so nothing ever grows: 0. Two
+# share one can, leave crops dry on some days, and harvest more than on the
+# intuitive rooftop. The goal still sits between one agent and a pair.
+reference: {solo: 0, pair: 69, split_pair: 80, by_day: 28}
+# The same brains reading this world's rules from its catalog (no watering of a crop that grows dry,
+# refill only at the cistern's hours), as partner bots play since 2026-10-06: the goal is easy once
+# the rules are known, so what the world measures is their discovery.
+informed: {solo: 119, pair: 144, split_pair: 119, by_day: 28}
+spawns:
+  - {at: [3, 4], inventory: {lumen_spores: 15}, tools: [can]}
+  - {at: [4, 5], inventory: {lumen_spores: 15}}
+  - {at: [3, 6], inventory: {lumen_spores: 5}}

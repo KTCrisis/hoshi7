@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hoshi7 viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@8.22.0/dist/pixi.min.js"></script>
+<style>
+:root {
+  --bg: #0b0e14; --panel: #111722; --line: #1f2a3a; --text: #c9d4e3; --dim: #6b7a90;
+  --neon: #4de1ff; --amber: #ffb347; --pink: #ff5fa2; --green: #7dff8a; --red: #ff6b6b;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+  font: 13px/1.45 "JetBrains Mono", ui-monospace, monospace; }
+header { display: flex; gap: 16px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--line);
+  flex-wrap: wrap; }
+header h1 { font-size: 14px; margin: 0; color: var(--neon); letter-spacing: .08em; }
+header select, header label { color: var(--text); background: var(--panel); border: 1px solid var(--line);
+  font: inherit; padding: 3px 6px; }
+.stat { color: var(--dim); } .stat b { color: var(--text); font-weight: 600; }
+.badge { display: inline-flex; align-items: center; gap: 7px; padding: 2px 10px; border-radius: 12px;
+  border: 1px solid currentColor; font-weight: 600; }
+.badge::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.badge.live { color: var(--green); } .badge.live::before { animation: blink 1s steps(2, start) infinite; box-shadow: 0 0 8px var(--green); }
+.badge.done { color: #5aa9ff; } .badge.stale { color: var(--red); }
+@keyframes blink { to { visibility: hidden; } }
+.badge.replay { color: #c39bff; }
+#player { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 10px; align-items: center;
+  padding: 8px 12px; background: rgba(11, 14, 20, .88); border-top: 1px solid var(--line); }
+#player button, #player select { background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  font: inherit; padding: 3px 10px; cursor: pointer; }
+#player input[type=range] { flex: 1; accent-color: #c39bff; }
+#when { min-width: 92px; color: var(--dim); }
+#tip { bottom: 50px; }
+#idle { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 6px 14px; border: 1px solid var(--line);
+  background: rgba(17, 23, 34, .92); color: var(--dim); border-radius: 14px; display: none; white-space: nowrap; }
+#idle b { color: var(--amber); font-weight: 600; }
+body { display: flex; flex-direction: column; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 420px; flex: 1; min-height: 0; }
+#world { position: relative; overflow: hidden; }
+#tip { position: absolute; left: 10px; bottom: 8px; color: var(--dim); pointer-events: none; }
+aside { border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
+nav { display: flex; border-bottom: 1px solid var(--line); }
+nav button { flex: 1; background: none; border: 0; color: var(--dim); font: inherit; padding: 8px 4px; cursor: pointer;
+  border-bottom: 2px solid transparent; }
+nav button.on { color: var(--neon); border-bottom-color: var(--neon); }
+section { display: none; overflow: auto; padding: 10px 12px; flex: 1; min-height: 0; }
+section.on { display: block; }
+.line { margin: 0 0 8px; } .line .who { font-weight: 600; } .line .when { color: var(--dim); font-size: 11px; }
+.line .verb { color: var(--dim); font-size: 11px; }
+.line.deed { font-size: 12px; margin-bottom: 4px; } .line.deed .what { color: var(--text); opacity: .75; }
+.line.deed.refused .what { color: #ff6b6b; opacity: .9; }
+.line.thought { color: var(--dim); font-style: italic; border-left: 2px solid var(--line); padding-left: 8px; }
+.line.thought summary { cursor: pointer; list-style: none; }
+.line.thought summary::-webkit-details-marker { display: none; }
+.line.thought summary::before { content: "▸ "; color: var(--dim); font-style: normal; }
+.line.thought[open] summary::before { content: "▾ "; }
+.line.thought:not([open]) .gist { color: var(--dim); }
+.line.thought[open] .gist { display: none; }
+.fold { margin-left: 6px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 3px; font: inherit; font-size: 11px; padding: 0 6px; cursor: pointer; font-style: normal; }
+.line.thought .tag { font-style: normal; font-size: 10px; padding: 0 4px; margin-right: 2px; }
+table { border-collapse: collapse; width: 100%; font-size: 12px; }
+th, td { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--line); }
+#results th, #results td { white-space: nowrap; }
+th { color: var(--dim); font-weight: 400; }
+td.num { text-align: right; }
+.tag { display: inline-block; padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; margin-right: 4px; }
+.applied { color: var(--green); border-color: var(--green); } .met { color: var(--amber); border-color: var(--amber); }
+.notyet { color: var(--dim); }
+.persona { white-space: pre-wrap; color: var(--text); background: #0d121b; padding: 8px; border: 1px solid var(--line); }
+h3 { font-size: 12px; color: var(--neon); margin: 14px 0 6px; font-weight: 600; letter-spacing: .05em; }
+#about p { margin: 0 0 10px; } #about b { color: var(--text); }
+.portrait { width: 96px; height: 96px; image-rendering: pixelated; border: 1px solid var(--line); float: right; margin-left: 8px; }
+.hint { color: var(--dim); }
+.legend { display: grid; grid-template-columns: 28px 1fr; gap: 6px 8px; align-items: center; margin: 0 0 10px; }
+.legend svg { width: 24px; height: 24px; display: block; }
+.legend span { color: var(--text); }
+header select { max-width: 100%; }
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 60%) minmax(0, 40%); }
+  aside { border-left: 0; border-top: 1px solid var(--line); }
+  header { gap: 4px 10px; padding: 6px 10px; font-size: 11px; }
+  header h1 { font-size: 12px; }
+  header select { flex: 1 1 100%; order: 9; font-size: 12px; }
+  header label[for], #coordsLabel { display: none; }
+  #followLabel { font-size: 11px; padding: 2px 4px; }
+  .badge { padding: 0 8px; }
+  #idle { white-space: normal; width: 88%; text-align: center; font-size: 11px; top: 6px; }
+  #player { gap: 6px; padding: 6px 8px; font-size: 11px; }
+  #player button, #player select { padding: 2px 6px; }
+  #when { min-width: 0; }
+  #tip { display: none; }
+  nav button { padding: 7px 2px; font-size: 11px; }
+  section { padding: 8px 10px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>HOSHI7</h1>
+  <select id="run"></select>
+  <label id="followLabel"><input type="checkbox" id="follow" checked> suivre la partie en cours</label>
+  <label id="coordsLabel"><input type="checkbox" id="coords"> coordonnées</label>
+  <span class="stat" id="clock"></span>
+  <span class="stat" id="harvest"></span>
+  <span class="stat" id="state"></span>
+</header>
+<main>
+  <div id="world"><div id="tip"></div><div id="idle"></div>
+    <div id="player">
+      <button id="play" title="lire / pause">▶</button>
+      <input type="range" id="scrub" min="0" max="0" value="0">
+      <span id="when"></span>
+      <select id="speed" title="heures de jeu par seconde">
+        <option value="1">1 h/s</option><option value="2" selected>2 h/s</option><option value="4">4 h/s</option>
+        <option value="8">8 h/s</option><option value="16">16 h/s</option>
+      </select>
+      <button id="live" title="revenir à l'état courant">direct</button>
+    </div>
+  </div>
+  <aside>
+    <nav>
+      <button data-tab="about">Le jeu</button>
+      <button data-tab="talk" class="on">Conversation</button>
+      <button data-tab="profile">Profil</button>
+      <button data-tab="rules">Règles</button>
+      <button data-tab="results">Résultats</button>
+    </nav>
+    <section id="about">
+      <h3>Ce que vous regardez</h3>
+      <p>Hoshi est un petit monde où vivent des personas d'intelligence artificielle. Personne ne les dirige : à chaque heure du jeu, chacune regarde ce qui l'entoure, décide d'une action et peut dire une phrase. Ce que vous voyez est ce qu'elles ont décidé, sans retouche.</p>
+      <h3>Le monde</h3>
+      <p>Un jardin sur un toit, au-dessus d'une ville qui ne dort jamais. On y cultive la <b>mousse lumineuse</b> dans des bacs de terre. Le but commun : récolter 50 mousses avant le jour 28.</p>
+      <p>Pour faire pousser une mousse : <b>labourer</b> un bac, y <b>planter</b> des spores, l'<b>arroser</b> chaque jour, la <b>récolter</b> quand elle est mûre (après quatre jours de pousse). Une mousse récoltée peut redonner des spores.</p>
+      <p>Il n'existe qu'<b>un seul arrosoir</b> (le can). Celui qui ne le tient pas ne peut pas arroser, et doit le demander : il ne change de main que si son porteur le donne. L'arrosoir se vide et se remplit à la citerne. Toute la coopération passe par lui.</p>
+      <p>Chaque action fatigue : l'<b>énergie</b> baisse dans la journée et revient chaque matin.</p>
+      <h3>Le temps</h3>
+      <p>C'est un jeu au tour par tour. Une heure de jeu passe quand chaque persona a joué ; une journée va de 06:00 à 02:00. Avec un modèle rapide, une heure prend quelques secondes ; le jour et la nuit défilent donc vite. Dans certaines parties, on ne travaille que de 07:00 à 19:00 : la soirée est libre.</p>
+      <h3>Les personas</h3>
+      <p>Chacune est un modèle de langage (Claude Haiku ou Sonnet, parfois un modèle local) à qui l'on peut donner un caractère : une intelligence froide et hautaine, une unité de soutien factuelle, un petit robot curieux et bavard. Dans d'autres parties, elle n'a qu'un nom, pour mesurer le modèle seul. On leur donne le même but et les mêmes règles ; ce qui change entre elles, c'est la façon d'être.</p>
+      <h3>Ce qu'on cherche à savoir</h3>
+      <p>Des personas d'IA arrivent-elles à jouer un but clair ? Coopèrent-elles quand il faut partager l'arrosoir ? Trouvent-elles les règles d'un monde par elles-mêmes, en se cognant aux refus ? Et le caractère change-t-il ce qu'elles <i>font</i>, ou seulement ce qu'elles <i>disent</i> ? Pour l'instant, la réponse honnête est : seules, elles s'en sortent ; à deux, c'est difficile, et la plupart de leurs actions sont refusées par le monde.</p>
+      <h3>Les signes au-dessus des têtes</h3>
+      <p>Pendant l'heure où une persona agit, un signe s'affiche au-dessus d'elle. Il montre ce que le monde a enregistré, pas ce qu'elle a voulu faire : un refus s'affiche comme un refus. Un déplacement n'a pas de signe, on voit la persona marcher.</p>
+      <div class="legend"><svg viewBox="-12 -12 24 24"><rect x="-11" y="-11" width="22" height="22" rx="6" fill="#0b0e14" stroke="#c8874a" stroke-width="1.5"/><line x1="-6" y1="-2" x2="6" y2="-8" stroke="#c8874a" stroke-width="2"/><line x1="-6" y1="3" x2="6" y2="-3" stroke="#c8874a" stroke-width="2"/><line x1="-6" y1="8" x2="6" y2="2" stroke="#c8874a" stroke-width="2"/></svg><span><b>labourer</b> un bac</span><svg viewBox="-12 -12 24 24"><rect x="-11" y="-11" width="22" height="22" rx="6" fill="#0b0e14" stroke="#7dff8a" stroke-width="1.5"/><line x1="0" y1="7" x2="0" y2="-3" stroke="#7dff8a" stroke-width="2"/><ellipse cx="-4" cy="-4" rx="4" ry="2.5" fill="#7dff8a"/><ellipse cx="4" cy="-6" rx="4" ry="2.5" fill="#7dff8a"/></svg><span><b>planter</b> des spores</span><svg viewBox="-12 -12 24 24"><rect x="-11" y="-11" width="22" height="22" rx="6" fill="#0b0e14" stroke="#4de1ff" stroke-width="1.5"/><polygon points="0,-8 5,1 -5,1" fill="#4de1ff"/><circle cx="0" cy="2" r="5" fill="#4de1ff"/></svg><span><b>arroser</b> un bac (avec l'arrosoir)</span><svg viewBox="-12 -12 24 24"><rect x="-11" y="-11" width="22" height="22" rx="6" fill="#0b0e14" stroke="#4de1ff" stroke-width="1.5"/><polygon points="0,-8 5,1 -5,1" fill="#4de1ff"/><circle cx="0" cy="2" r="5" fill="#4de1ff"/><rect x="-1" y="-2" width="2" height="7" fill="#0b0e14"/><rect x="-3.5" y="0.5" width="7" height="2" fill="#0b0e14"/></svg><span><b>remplir</b> l'arrosoir à la citerne</span><svg viewBox="-12 -12 24 24"><rect x="-11" y="-11" width="22" height="22" rx="6" fill="#0b0e14" stroke="#fff27a" stroke-width="1.5"/><circle cx="0" cy="1" r="6" fill="#fff27a" opacity=".35"/><circle cx="-2" cy="2" r="2.5" fill="#fff27a"/><circle cx="2.5" cy="0" r="2.5" fill="#fff27a"/><circle cx="0" cy="-3" r="2.5" fill="#fff27a"/></svg><span><b>récolter</b> une mousse mûre</span><svg viewBox="-12 -12 24 24"><rect x="-11" y="-11" width="22" height="22" rx="6" fill="#0b0e14" stroke="#9aa3b5" stroke-width="1.5"/><rect x="-6" y="-2" width="6" height="6" fill="#9aa3b5"/><rect x="1" y="-6" width="5" height="5" fill="#6b7a90"/><rect x="0" y="1" width="6" height="5" fill="#4b5260"/></svg><span><b>ramasser</b> de la ferraille ou du fil (antenne)</span><svg viewBox="-12 -12 24 24"><rect x="-11" y="-11" width="22" height="22" rx="6" fill="#0b0e14" stroke="#ffb347" stroke-width="1.5"/><text x="0" y="5" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="14" fill="#ffb347">?</text></svg><span><b>examiner</b> quelque chose (le terminal)</span><svg viewBox="-12 -12 24 24"><rect x="-11" y="-11" width="22" height="22" rx="6" fill="#0b0e14" stroke="#ffb347" stroke-width="1.5"/><text x="0" y="5" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="15" fill="#ffb347">+</text></svg><span><b>fabriquer</b> un objet d'après une recette</span><svg viewBox="-12 -12 24 24"><rect x="-11" y="-11" width="22" height="22" rx="6" fill="#0b0e14" stroke="#e6e6e6" stroke-width="1.5"/><text x="0" y="5" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="14" fill="#e6e6e6">→</text></svg><span><b>donner</b> quelque chose (l'arrosoir, des spores)</span><svg viewBox="-12 -12 24 24"><rect x="-11" y="-11" width="22" height="22" rx="6" fill="#0b0e14" stroke="#ff6b6b" stroke-width="1.5"/><text x="0" y="5" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="15" fill="#ff6b6b">×</text></svg><span>une action <b>refusée</b> par le monde (trop loin, pas d'arrosoir, mal formée...)</span><svg viewBox="-12 -12 24 24"><text x="-11" y="4" font-family="JetBrains Mono" font-weight="700" font-size="10" fill="#aecbff">zZz</text></svg><span><b>attendre</b> : l'heure passe sans rien faire</span></div>
+      <h3>Les bacs et les cultures</h3>
+      <p>Un bac <b>labouré</b> montre des sillons ; il fonce quand il est <b>arrosé</b> pour la journée (tout sèche la nuit). Une mousse passe de la <b>pousse</b> à la plante <b>jeune</b>, puis <b>grande</b> ; <b>mûre</b>, elle brille d'un halo jaune et peut être récoltée. Elle ne grandit que les jours où elle a été arrosée.</p>
+      <h3>Ce qu'une persona sait</h3>
+      <p>Elle ne voit que <b>cinq cases autour d'elle</b>. Elle se souvient de ses douze dernières actions, avec ce qui a réussi ou échoué et pourquoi, de l'état des bacs qu'elle a vus et des dernières phrases échangées. Dans certaines parties, elle retient aussi les <b>lieux</b> qu'elle a aperçus et ne peut se rendre que là. Rien ne passe d'une partie à l'autre : chaque partie repart de zéro.</p>
+      <h3>Les partenaires automatiques</h3>
+      <p>Certaines parties opposent une persona à un <b>bot</b>, un programme simple qui suit les règles sans parler ni écouter. L'un garde l'arrosoir et arrose tout ce qui est planté ; l'autre laboure, plante et récolte, et rend l'arrosoir si on le lui confie. Ils servent de partenaire fixe : on mesure si la persona comprend ce que fait l'autre en le regardant agir. Il arrive qu'elle tente de lui <i>acheter</i> l'arrosoir.</p>
+      <p>Une recette donne une <b>lampe de culture</b>. Elle ne sert à rien, exprès : on compte les personas qui en fabriquent en lui prêtant un pouvoir que le monde ne lui donne pas.</p>
+      <h3>Lire l'écran</h3>
+      <p>Les <b>bulles</b> donnent l'intention du moment ; la phrase entière est dans <i>Conversation</i>. Sous chaque persona, une <b>barre d'énergie</b> ; à côté de celle qui tient l'arrosoir, une fiole avec son niveau. La <b>lumière</b> suit l'heure, de l'aube à la nuit ; le ciel étoilé et ses étoiles filantes sont un décor, sans effet sur le jeu. Un clic sur une persona ouvre son <i>Profil</i>. L'onglet <i>Règles</i> montre celles qu'elle a rencontrées (un refus) et appliquées (des réussites ensuite). <i>Résultats</i> compare toutes les parties jouées.</p>
+      <p>En haut, le badge dit si la partie est <b>en cours</b> (vert), <b>terminée</b> (bleu) ou <b>interrompue</b> (rouge). En bas, la barre de <b>relecture</b> rejoue n'importe quelle partie heure par heure ; « direct » revient au présent. Glisser déplace la carte, la molette zoome.</p>
+    </section>
+    <section id="talk" class="on"></section>
+    <section id="profile"><p class="hint">Clique sur une persona dans le monde.</p></section>
+    <section id="rules"></section>
+    <section id="results"></section>
+    <p class="hint" style="padding:6px 12px;margin:0;border-top:1px solid var(--line)">Tuiles : Kenney (kenney.nl), CC0, pixelisées.</p>
+  </aside>
+</main>
+<script>
+const COLORS = [0xffb347, 0x4de1ff, 0xff5fa2, 0x7dff8a];
+const TW = 64, TH = 32;
+let snap = null, current = null, chosen = null, sprites = {}, results = [];
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const color = (name) => { const ids = Object.keys(snap?.agents || {}); return COLORS[Math.max(0, ids.indexOf(name)) % COLORS.length]; };
+const css = (n) => "#" + n.toString(16).padStart(6, "0");
+const nameOf = (id) => snap?.agents?.[id]?.name || id;   // the persona's name when it has one
+
+// A first visit opens on the explanation of the game; later visits on the conversation.
+try { if (!localStorage.getItem("hoshi7-seen")) { localStorage.setItem("hoshi7-seen", "1");
+  setTimeout(() => document.querySelector('nav button[data-tab="about"]').click(), 0); } } catch {}
+document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll("nav button, section").forEach((e) => e.classList.remove("on"));
+  b.classList.add("on"); $(b.dataset.tab).classList.add("on");
+});
+
+const app = new PIXI.Application();
+const stage = new PIXI.Container();
+const ground = new PIXI.Container(), people = new PIXI.Container(), marks = new PIXI.Container(), talkLayer = new PIXI.Container();
+people.sortableChildren = true;
+const TILES = ["deck", "soil", "water", "scrap", "antenna", "terminal", "tilled", "watered", "sprout", "young", "grown", "ripe"];
+const tex = {}, bodies = {};      // tile textures; one persistent figure per agent, which walks
+const LIFT = 42;                    // how high a block stacked on another sits
+let shimmer = 0, waters = [], centered = false;
+// Replay: the timeline is the list of [log index, day, hour] after each hour; `i` is where we stand.
+const replay = { on: false, playing: false, i: 0, tl: [], timer: null };
+let holder = null;                 // who held the can at the last frame drawn
+const flights = [];                // cans flying from giver to receiver
+// Folded thoughts in the Conversation tab: all open or closed (kept in this browser), and one-off toggles.
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const load = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } };
+const thoughts = { open: load("thoughtsOpen", false), each: {}, deeds: load("showDeeds", true) };
+
+// The sky behind the board: stars that twinkle, and now and then a shooting star. Screen space, with a
+// slight parallax when the board is dragged; rebuilt on resize. Reduced motion: the stars stay still.
+const sky = new PIXI.Container(), stars = [], meteors = [];
+const STILL = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let skyClock = 0, nextMeteor = 3000;
+// Star colours by weight, from the spectral classes (blue-white to red) with a touch of the cyber palette.
+const STAR_COLORS = [[0xf4f6ff, 30], [0xaecbff, 18], [0x9fdcff, 12], [0xfff1c4, 14], [0xffc879, 10],
+  [0xff9a6b, 6], [0xff6f6f, 3], [0xe6a6ff, 4], [0x8affd8, 3]];
+const STAR_WEIGHT = STAR_COLORS.reduce((n, [, w]) => n + w, 0);
+function starColor() {
+  let r = Math.random() * STAR_WEIGHT;
+  for (const [c, w] of STAR_COLORS) { if ((r -= w) < 0) return c; }
+  return STAR_COLORS[0][0];
+}
+function makeSky() {
+  sky.removeChildren(); stars.length = 0; meteors.length = 0;
+  const w = app.screen.width, h = app.screen.height, n = Math.round(w * h / 2600);
+  for (let i = 0; i < n; i++) {
+    const color = starColor(), big = Math.random() < 0.07, size = big || Math.random() < 0.3 ? 2 : 1;
+    const g = new PIXI.Graphics();
+    if (big) g.rect(-2, 0, 6, 2).fill({ color, alpha: 0.18 }).rect(0, -2, 2, 6).fill({ color, alpha: 0.18 });  // a soft cross
+    g.rect(0, 0, size, size).fill(color);
+    g.x = Math.random() * w * 1.1 - w * 0.05; g.y = Math.random() * h * 1.1 - h * 0.05;
+    const base = 0.45 + Math.random() * 0.55;
+    g.alpha = base; sky.addChild(g);
+    stars.push({ g, base, phase: Math.random() * Math.PI * 2, speed: 0.6 + Math.random() * 1.8 });
+  }
+}
+function launchMeteor() {
+  const w = app.screen.width, h = app.screen.height;
+  const angle = Math.PI / 6 + Math.random() * Math.PI / 8;          // falling to the lower left or right
+  const dir = Math.random() < 0.5 ? 1 : -1, speed = 0.9 + Math.random() * 0.7;   // px per ms
+  const g = new PIXI.Graphics(); sky.addChild(g);
+  meteors.push({ g, x: w * (0.15 + Math.random() * 0.7), y: h * Math.random() * 0.35,
+    vx: dir * Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 0, span: 700 + Math.random() * 600,
+    tail: 70 + Math.random() * 90 });
+}
+function skyTick(ms) {
+  sky.x = stage.x * 0.04; sky.y = stage.y * 0.04;
+  if (STILL) return;
+  skyClock += ms / 1000;
+  for (const s of stars) s.g.alpha = s.base * (0.65 + 0.35 * Math.sin(skyClock * s.speed + s.phase));
+  nextMeteor -= ms;
+  if (nextMeteor <= 0) { launchMeteor(); nextMeteor = 4000 + Math.random() * 9000; }
+  for (let i = meteors.length - 1; i >= 0; i--) {
+    const m = meteors[i];
+    m.life += ms; m.x += m.vx * ms; m.y += m.vy * ms;
+    const fade = Math.min(1, m.life / 120) * Math.max(0, 1 - m.life / m.span), len = Math.hypot(m.vx, m.vy);
+    const ux = m.vx / len, uy = m.vy / len;
+    m.g.clear();
+    // the trail in segments, fading from the head; the head a bright pixel
+    for (let k = 0; k < 8; k++) {
+      const a = k / 8 * m.tail, b = (k + 1) / 8 * m.tail;
+      m.g.moveTo(m.x - ux * a, m.y - uy * a).lineTo(m.x - ux * b, m.y - uy * b)
+        .stroke({ width: k < 2 ? 2 : 1, color: k < 3 ? 0xffffff : 0x9fdcff, alpha: fade * (1 - k / 8) });
+    }
+    m.g.rect(m.x - 1, m.y - 1, 3, 3).fill({ color: 0xffffff, alpha: fade });
+    if (m.life >= m.span) { m.g.destroy(); meteors.splice(i, 1); }
+  }
+}
+
+async function boot() {
+  // a thought folded or unfolded by hand stays so across refreshes (toggle does not bubble: capture)
+  $("talk").addEventListener("toggle", (e) => { const k = e.target.dataset?.k; if (k) thoughts.each[k] = e.target.open; }, true);
+  await app.init({ resizeTo: $("world"), background: 0x0b0e14, antialias: false });
+  $("world").prepend(app.canvas);
+  app.stage.addChild(sky, stage); stage.addChild(ground, people, marks, talkLayer);
+  makeSky();
+  for (const n of TILES) { try { const t = await PIXI.Assets.load(`/tiles/${n}.png`); t.source.scaleMode = "nearest"; tex[n] = t; } catch {} }
+  let drag = null;
+  app.stage.eventMode = "static"; app.stage.hitArea = app.screen;
+  app.stage.on("pointerdown", (e) => drag = { x: e.global.x - stage.x, y: e.global.y - stage.y });
+  app.stage.on("pointerup", () => drag = null); app.stage.on("pointerupoutside", () => drag = null);
+  window.addEventListener("pointerup", () => drag = null);      // a release anywhere ends a drag
+  window.addEventListener("pointercancel", () => drag = null);
+  app.stage.on("pointermove", (e) => { if (drag) { stage.x = e.global.x - drag.x; stage.y = e.global.y - drag.y; } });
+  // two fingers: pinch to zoom (one finger drags, as the mouse does)
+  const touches = new Map(); let pinch = null;
+  app.canvas.addEventListener("pointerdown", (e) => { touches.set(e.pointerId, [e.clientX, e.clientY]); });
+  app.canvas.addEventListener("pointermove", (e) => {
+    if (!touches.has(e.pointerId)) return;
+    touches.set(e.pointerId, [e.clientX, e.clientY]);
+    if (touches.size === 2) {
+      const [[ax, ay], [bx, by]] = [...touches.values()], d = Math.hypot(ax - bx, ay - by);
+      if (pinch) { stage.scale.set(Math.min(4, Math.max(0.3, pinch.k * d / pinch.d))); drag = null; } else pinch = { d, k: stage.scale.x };
+    }
+  });
+  const lift = (e) => { touches.delete(e.pointerId); if (touches.size < 2) pinch = null; };
+  app.canvas.addEventListener("pointerup", lift); app.canvas.addEventListener("pointercancel", lift);
+  app.canvas.style.touchAction = "none";
+  window.addEventListener("resize", () => { centered = false; requestAnimationFrame(makeSky); if (snap) draw(snap, true); });
+  app.canvas.addEventListener("wheel", (e) => { e.preventDefault(); const k = e.deltaY < 0 ? 1.1 : 0.9;
+    stage.scale.set(Math.min(4, Math.max(0.4, stage.scale.x * k))); }, { passive: false });
+  app.ticker.add((t) => { shimmer += 0.05; for (const w of waters) w.alpha = 0.82 + 0.15 * Math.sin(shimmer + w.x / 40); walk(t.deltaMS); fly(t.deltaMS); skyTick(t.deltaMS); dozeTick(); placeBubbles(); });
+  $("coords").onchange = () => snap && draw(snap);
+  $("scrub").oninput = () => { replay.on = true; pause(); show(+$("scrub").value, true); };
+  $("play").onclick = () => replay.playing ? pause() : play();
+  $("speed").onchange = () => { if (replay.playing) { pause(); play(); } };
+  $("live").onclick = () => { pause(); replay.on = false; tick(); };
+  await loadRuns(); await loadResults(); tick();
+  setInterval(tick, 2000); setInterval(loadRuns, 10000); setInterval(loadResults, 30000);
+}
+
+async function loadRuns() {
+  const runs = await (await fetch("/api/runs")).json();
+  const sel = $("run"), keep = sel.value;
+  // Grouped for a visitor: what is playing, today's runs, earlier ones; the label says who, where, what came of it.
+  const today = new Date().toDateString(), opt = (r) => `<option value="${esc(r.dir)}" title="${esc(r.dir)}">${r.live ? "● " : ""}${esc(r.label)}</option>`;
+  const groups = [["En cours", runs.filter((r) => r.live)],
+    ["Aujourd'hui", runs.filter((r) => !r.live && new Date(r.mtime * 1000).toDateString() === today)],
+    ["Avant", runs.filter((r) => !r.live && new Date(r.mtime * 1000).toDateString() !== today).slice(0, 80)]];
+  sel.innerHTML = groups.filter(([, rs]) => rs.length).map(([g, rs]) => `<optgroup label="${g}">${rs.map(opt).join("")}</optgroup>`).join("");
+  const live = runs.find((r) => r.live);
+  if ($("follow").checked && live) sel.value = live.dir; else if (keep) sel.value = keep;
+  const last = runs[0] ? new Date(runs[0].mtime * 1000) : null;
+  $("idle").style.display = live ? "none" : "block";
+  $("idle").innerHTML = `<b>Pas de partie en cours</b>` + (last ? ` · dernière activité le ${last.toLocaleDateString("fr-FR")} à ${last.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · la relecture reste possible` : "");
+  sel.onchange = () => { $("follow").checked = false; tick(); };
+}
+
+async function loadResults() {
+  results = await (await fetch("/api/results")).json();
+  const f1 = (v) => (v ?? 0) ? (+v).toFixed(1).replace(/\.0$/, "") : "·";
+  // A cell's label, short enough for the panel: "6+present+coords +scripted-water(a) none/none · 6 j" -> "6 pc · bot arrose (a) · 6 j"
+  const model = (b) => b.replace(/^claude:claude-/, "").replace(/^chat:/, "").replace(/-(\d)-(\d)$/, " $1.$2").replace(/-4-5$/, " 4.5")
+    .replace(/^mistral-small(\d\.\d):\d+b$/, "mistral $1").replace(/-/g, " ");
+  const cell = (st) => st.replace("+present+coords", " pc").replace(/\s*\+scripted-water\((\w)\)/, " · bot arrose ($1)")
+    .replace(/\s*\+scripted-giver\((\w)\)/, " · bot donne ($1)").replace(/\s*\+scripted-field\((\w)\)/, " · bot champs ($1)")
+    .replace(/\s*none\/none/, "").replace(/^6 pc · /, "").replace(/^6 pc /, "").replace(/^6 · /, "").replace(/\s+·/g, " ·").replace(/^· /, "");
+  $("results").innerHTML = `<p class="hint">Toutes les parties sur le harnais corrigé (runs/ladder/results.jsonl), moyennes par partie.</p>
+  <div style="overflow-x:auto"><table><tr><th>modèle</th><th>cellule</th><th>n</th><th>refus</th><th>répét.</th><th>plantés</th><th>récoltes</th><th>graines</th><th>can</th>
+  <th>ferraille</th><th>cuivre</th><th>lampes</th><th>terminal</th><th>$</th></tr>
+  ${results.map((r) => `<tr><td>${esc(model(r.brain))}</td>
+  <td style="white-space:nowrap">${r.kind === "solo" ? "seul · " : /bot/.test(cell(r.stage)) ? "" : "à deux · "}${esc(cell(r.stage))}</td><td class="num">${r.n}</td><td class="num">${(100 * r.refused).toFixed(0)} %</td><td class="num">${f1(r.repeats)}</td>
+  <td class="num">${r.planted.toFixed(1)}</td><td class="num">${r.harvested.toFixed(1)}</td><td class="num">${f1(r.seeds_made)}</td>
+  <td class="num">${r.can.toFixed(0)}</td><td class="num">${f1(r.alloy)}</td><td class="num">${f1(r.copper)}</td>
+  <td class="num">${f1(r.decoys)}</td><td class="num">${f1(r.examined)}</td><td class="num">${r.usd ? r.usd.toFixed(2) : ""}</td></tr>`).join("")}</table></div>
+  <p class="hint">Toutes ces parties : étape 6 avec <i>present</i> et le ciblage par case, sans persona (le modèle n'a qu'un nom), sur le toit. <b>répét.</b> : actions refusées rejouées telles quelles au tour suivant. <b>graines</b> : graines refaites à partir d'une récolte. <b>can</b> : passages de l'arrosoir de main en main.
+  Hors de la ferme : <b>ferraille</b> (alloy, tas de ferraille) et <b>cuivre</b> (fil, antenne morte) ramassés ; <b>lampes</b> de culture fabriquées, un leurre qui ne sert à rien ; <b>terminal</b> examiné, qui ne raconte qu'une histoire.</p>`;
+}
+
+function play() {
+  if (!replay.tl.length) return;
+  if (!replay.on || replay.i >= replay.tl.length - 1) { replay.on = true; replay.i = 0; show(0, true); }
+  replay.playing = true; $("play").textContent = "⏸";
+  replay.timer = setInterval(async () => {
+    if (replay.i >= replay.tl.length - 1) return pause();
+    await show(replay.i + 1, false);
+  }, 1000 / +$("speed").value);
+}
+function pause() { replay.playing = false; clearInterval(replay.timer); $("play").textContent = "▶"; }
+
+async function show(i, jump) {
+  replay.i = i; $("scrub").value = i;
+  const s = await (await fetch(`/api/run?dir=${encodeURIComponent(current)}&at=${replay.tl[i][0]}`)).json();
+  if (s.error) return;
+  snap = s; draw(s, jump); panels(s);
+}
+
+async function tick() {
+  const dir = $("run").value; if (!dir) return;
+  if (dir !== current) { centered = false; chosen = null; people.removeChildren(); talkLayer.removeChildren(); for (const k in bodies) delete bodies[k];
+    holder = null; flights.length = 0;
+    pause(); replay.on = false; }
+  current = dir;
+  if (replay.on) return;          // replaying: the player drives the view
+  const s = await (await fetch("/api/run?dir=" + encodeURIComponent(dir))).json();
+  if (s.waiting || s.error) return;
+  snap = s;
+  replay.tl = s.timeline; $("scrub").max = Math.max(0, s.timeline.length - 1); $("scrub").value = $("scrub").max;
+  replay.i = +$("scrub").max;
+  await loadSprites(s);
+  draw(s); panels(s);
+}
+
+async function loadSprites(s) {
+  for (const a of Object.values(s.agents)) {
+    if (!a.sprite || a.sprite in sprites) continue;
+    sprites[a.sprite] = null;
+    try { const t = await PIXI.Assets.load(`/sprites/${a.sprite}.png`); t.source.scaleMode = "nearest"; sprites[a.sprite] = t; }
+    catch { sprites[a.sprite] = null; }
+  }
+}
+
+const iso = (x, y) => [(x - y) * TW / 2, (x + y) * TH / 2];
+const shade = (c, k) => ((((c >> 16) & 255) * k) << 16) | ((((c >> 8) & 255) * k) << 8) | ((c & 255) * k);
+
+function block(layer, name, cx, cy, lift = 0) {
+  const t = tex[name]; if (!t) return null;
+  const sp = new PIXI.Sprite(t); sp.scale.set(2); sp.x = cx - TW / 2; sp.y = cy - lift; layer.addChild(sp); return sp;
+}
+function onTop(layer, name, cx, cy) {   // a farm sprite: its diamond sits on the block's top face
+  const t = tex[name]; if (!t) return null;
+  const sp = new PIXI.Sprite(t); sp.scale.set(2); sp.x = cx - TW / 2; sp.y = cy - 94; layer.addChild(sp); return sp;
+}
+
+// Textured: the farm (soil, furrows, crops) and the water. Everything else is a plain tile, flat
+// for the deck, a raised block for what can be gathered or read.
+function plain(g, cx, cy, fill, h = 0) {
+  const top = [cx, cy - h, cx + TW / 2, cy + TH / 2 - h, cx, cy + TH - h, cx - TW / 2, cy + TH / 2 - h];
+  if (h > 0) {
+    g.poly([cx - TW / 2, cy + TH / 2 - h, cx, cy + TH - h, cx, cy + TH, cx - TW / 2, cy + TH / 2]).fill(shade(fill, 0.6));
+    g.poly([cx + TW / 2, cy + TH / 2 - h, cx, cy + TH - h, cx, cy + TH, cx + TW / 2, cy + TH / 2]).fill(shade(fill, 0.45));
+  }
+  g.poly(top).fill(fill).stroke({ width: 1, color: 0x000000, alpha: 0.3 });
+}
+function baseOf(s, t) {
+  const spec = s.tiles[t.k] || {};
+  if (spec.source) return { tex: "water" };
+  if (spec.soil) return { tex: "soil" };
+  if (spec.gather) return spec.name.includes("antenna") ? { fill: 0x5a4a6e, h: 14 } : { fill: 0x4b5260, h: 14 };
+  if (spec.lore) return { fill: 0x7a5a20, h: 18, lore: true };
+  return { fill: 0x1a2230 };
+}
+function cropOf(s, t) {
+  if (!t.c) return null;
+  if (t.r) return "ripe";
+  const days = (s.crops?.[t.c]?.days) || 4;
+  return t.g === 0 ? "sprout" : t.g < days / 2 ? "young" : "grown";
+}
+
+// The light of the hour, laid over the board and the figures (the labels and bubbles stay readable).
+function lightOf(hour) {   // a tint multiplied into the tiles and the figures
+  const h = hour % 24;
+  if (h >= 7 && h < 18) return 0xffffff;
+  if (h === 6) return 0xffd2b0;                          // dawn
+  if (h === 18) return 0xffc89a;                         // late afternoon
+  if (h === 19) return 0xc8a2d8;                         // dusk
+  if (h === 20) return 0x8a92c8;
+  return 0x5a68a8;                                       // night
+}
+function isNight(s) { const w = s.clock?.work; const h = s.hour % 24; return w ? !(h >= w[0] && h < w[1]) : (h < 7 || h >= 19); }
+
+function draw(s, jump = false) {
+  ground.removeChildren(); marks.removeChildren(); waters = [];
+  const W = s.grid[0].length, H = s.grid.length;
+  ground.tint = people.tint = lightOf(s.hour);
+  for (let d = 0; d < W + H; d++) for (let y = 0; y < H; y++) {
+    const x = d - y; if (x < 0 || x >= W) continue;
+    const t = s.grid[y][x], [cx, cy] = iso(x, y), base = baseOf(s, t);
+    if (base.tex === "water") { const b = block(ground, "water", cx, cy, -6); if (b) waters.push(b); }   // a basin, a little below the deck
+    else if (base.tex) block(ground, base.tex, cx, cy);
+    else {
+      const g = new PIXI.Graphics(); plain(g, cx, cy, base.fill, base.h || 0); ground.addChild(g);
+      if (base.lore) g.rect(cx - 6, cy + TH / 2 - base.h - 10, 12, 8).fill(0xffb347);
+    }
+    if (t.t) onTop(ground, t.w ? "watered" : "tilled", cx, cy);
+    const crop = cropOf(s, t);
+    if (crop) {
+      if (crop === "ripe") ground.addChild(new PIXI.Graphics().ellipse(cx, cy + TH / 2, 22, 11).fill({ color: 0xfff27a, alpha: 0.25 }));
+      onTop(ground, crop, cx, cy);
+    }
+    const hit = new PIXI.Graphics().poly([cx, cy, cx + TW / 2, cy + TH / 2, cx, cy + TH, cx - TW / 2, cy + TH / 2]).fill({ color: 0, alpha: 0.001 });
+    hit.eventMode = "static"; hit.on("pointerover", () => $("tip").textContent = describe(s, x, y));
+    ground.addChild(hit);
+    if ($("coords").checked) {
+      const l = new PIXI.Text({ text: `${x},${y}`, style: { fontFamily: "JetBrains Mono", fontSize: 9, fill: "#c9d4e3" } });
+      l.anchor.set(0.5); l.x = cx; l.y = cy + TH / 2; l.alpha = 0.7; marks.addChild(l);
+    }
+  }
+  const num = (text, x, y) => { const l = new PIXI.Text({ text, style: { fontFamily: "JetBrains Mono", fontSize: 12, fill: "#4de1ff", fontWeight: "600" } });
+    l.anchor.set(0.5); l.x = x; l.y = y; marks.addChild(l); };
+  for (let x = 0; x < W; x++) { const [cx, cy] = iso(x, -1); num(`x${x}`, cx + 6, cy + TH / 2 + 4); }
+  for (let y = 0; y < H; y++) { const [cx, cy] = iso(-1, y); num(`y${y}`, cx - 6, cy + TH / 2 + 4); }
+  for (const id of Object.keys(s.agents)) figure(s, id, jump);
+  // The can changed hands: a flask flies from the giver to the receiver.
+  if (!jump && holder && s.can_holder && holder !== s.can_holder && bodies[holder] && bodies[s.can_holder]) {
+    const f = new PIXI.Graphics().roundRect(-5, -8, 10, 16, 2).fill(0x4de1ff).stroke({ width: 1, color: 0x0b0e14 });
+    const tag = new PIXI.Text({ text: "can", style: { fontFamily: "JetBrains Mono", fontSize: 10, fill: "#4de1ff", fontWeight: "600" } });
+    tag.anchor.set(0.5, 1); tag.y = -10; f.addChild(tag);
+    talkLayer.addChild(f); flights.push({ f, from: bodies[holder].box, to: bodies[s.can_holder].box, t: 0 });
+  }
+  holder = s.can_holder;
+  for (const id of Object.keys(bodies)) if (!s.agents[id]) { bodies[id].bubble?.destroy(); bodies[id].thought?.destroy(); bodies[id].box.destroy(); delete bodies[id]; }
+  if (!centered) {
+    const [ax] = iso(0, H - 1), [bx] = iso(W - 1, 0), [, by] = iso(W - 1, H - 1);
+    const free = app.screen.height - 56;      // above the replay bar
+    const k = Math.min(2, (app.screen.width - 40) / (bx - ax + TW), free / (by + TH + 150));
+    stage.scale.set(k); stage.x = app.screen.width / 2 - ((ax + bx) / 2) * k; stage.y = Math.max(20, (free - (by + TH + 40) * k) / 2 + 100 * k); centered = true;
+  }
+}
+
+// One figure per agent, kept across refreshes: when the agent's tile changes, it walks there
+// tile by tile (first along x, then along y), instead of jumping.
+function figure(s, id, jump = false) {
+  const a = s.agents[id];
+  let b = bodies[id];
+  if (!b) {
+    const box = new PIXI.Container(); people.addChild(box);
+    box.eventMode = "static"; box.cursor = "pointer";
+    box.on("pointertap", (e) => { e.stopPropagation(); chosen = id; profile(snap); showTab("profile"); });
+    const [cx, cy] = iso(a.x, a.y);
+    b = bodies[id] = { box, x: a.x, y: a.y, path: [], px: cx, py: cy + TH / 2 };
+    box.x = b.px; box.y = b.py;
+  }
+  if (jump && (a.x !== b.x || a.y !== b.y)) {   // a scrub jumps; only play and live walk
+    const [cx, cy] = iso(a.x, a.y); b.path = []; b.x = a.x; b.y = a.y; b.box.x = cx; b.box.y = cy + TH / 2;
+  }
+  if (a.x !== b.x || a.y !== b.y) {
+    const last = b.path.length ? b.path[b.path.length - 1] : [b.x, b.y];
+    let [x, y] = last;
+    while (x !== a.x) { x += Math.sign(a.x - x); b.path.push([x, y]); }
+    while (y !== a.y) { y += Math.sign(a.y - y); b.path.push([x, y]); }
+    b.x = a.x; b.y = a.y;
+  }
+  const box = b.box; box.removeChildren();
+  const c = color(id), t = sprites[a.sprite];
+  box.addChild(new PIXI.Graphics().ellipse(0, 0, 15, 6).fill({ color: 0x000000, alpha: 0.5 }));
+  if (t) { const sp = new PIXI.Sprite(t); sp.anchor.set(0.5, 1); sp.scale.set(0.5); sp.y = 2; box.addChild(sp); }
+  else { const g = new PIXI.Graphics(); g.roundRect(-10, -40, 20, 38, 6).fill(c); g.circle(0, -46, 9).fill(shade(c, 0.85)); box.addChild(g); }
+  if (a.can) {   // the flask: its level is the charge left
+    const size = s.can?.size || 10, k = Math.max(0, Math.min(1, s.can_charge / size));
+    const f = new PIXI.Graphics();
+    f.roundRect(14, -34, 10, 16, 2).fill(0x0b0e14).stroke({ width: 1, color: 0x4de1ff });
+    f.rect(15, -19 - 14 * k, 8, 14 * k).fill(0x4de1ff);
+    box.addChild(f);
+    const n = new PIXI.Text({ text: `${s.can_charge}/${size}`, style: { fontFamily: "JetBrains Mono", fontSize: 9, fill: "#4de1ff" } });
+    n.x = 27; n.y = -32; box.addChild(n);
+  }
+  const label = new PIXI.Text({ text: nameOf(id), style: { fontFamily: "JetBrains Mono", fontSize: 11, fill: css(c), fontWeight: "600" } });
+  label.anchor.set(0.5, 0); label.y = 6; box.addChild(label);
+  const e = Math.max(0, Math.min(1, a.energy / (s.max_energy || 30)));   // energy, back to full each morning
+  const bar = new PIXI.Graphics();
+  bar.rect(-16, 21, 32, 4).fill(0x1f2a3a);
+  bar.rect(-16, 21, 32 * e, 4).fill(e > 0.5 ? 0x7dff8a : e > 0.2 ? 0xffb347 : 0xff6b6b);
+  box.addChild(bar);
+  b.icon = null;
+  const act = a.act;
+  if (act && act.tick >= s.tick - 1 && act.kind !== "move") { b.icon = actIcon(act); b.icon.scale.set(1.25); b.icon.y = -66; box.addChild(b.icon); }
+  if (b.bubble) { b.bubble.destroy({ children: true }); b.bubble = null; }
+  if (b.thought) { b.thought.destroy({ children: true }); b.thought = null; }
+  const fresh = (l) => l && l.day === s.day && Math.abs(l.hour - s.hour) <= 1;
+  // What it thought (the private note, `--with note`): a dotted bubble, shown first.
+  const thought = [...s.talk].reverse().find((l) => l.agent === id && l.kind === "note");
+  if (fresh(thought) && thought.partner) { b.thought = thinkBubble(intent(belief(thought.partner)), c); talkLayer.addChild(b.thought); }
+  const said = [...s.talk].reverse().find((l) => l.agent === id && l.kind === "said");   // a speech bubble is what was said
+  if (fresh(said)) {
+    const tt = new PIXI.Text({ text: intent(said.text), style: { fontFamily: "JetBrains Mono", fontSize: 10, fill: "#0b0e14", wordWrap: true, wordWrapWidth: 150 } });
+    const bubble = new PIXI.Container();
+    bubble.addChild(new PIXI.Graphics(), new PIXI.Graphics().roundRect(0, 0, tt.width + 12, tt.height + 10, 6).fill({ color: css(c), alpha: 0.94 }), tt);
+    tt.x = 6; tt.y = 5; bubble.w = tt.width + 12; bubble.h = tt.height + 10; bubble.color = c;
+    talkLayer.addChild(bubble); b.bubble = bubble;
+    // Thought first, then speech: a new line waits a moment after the thought before it appears.
+    const key = `${said.tick}|${said.text}`;
+    if (b.thought && key !== b.saidKey) b.showAt = performance.now() + 900;
+    b.saidKey = key;
+    if (b.showAt && performance.now() < b.showAt) bubble.alpha = 0;
+  }
+}
+
+// A thought bubble: dark, with a dotted outline in the agent's colour, the text in italics.
+function thinkBubble(text, c) {
+  const tt = new PIXI.Text({ text, style: { fontFamily: "JetBrains Mono", fontSize: 10, fill: css(c), fontStyle: "italic", wordWrap: true, wordWrapWidth: 150 } });
+  const w = tt.width + 14, h = tt.height + 12, dots = new PIXI.Graphics();
+  dots.roundRect(0, 0, w, h, 8).fill({ color: 0x0b0e14, alpha: 0.85 });
+  const step = 5;
+  for (let x = 4; x <= w - 4; x += step) dots.circle(x, 0, 1.1).circle(x, h, 1.1);
+  for (let y = 4; y <= h - 4; y += step) dots.circle(0, y, 1.1).circle(w, y, 1.1);
+  dots.fill(c);
+  const bubble = new PIXI.Container();
+  bubble.addChild(new PIXI.Graphics(), dots, tt);
+  tt.x = 7; tt.y = 6; bubble.w = w; bubble.h = h; bubble.color = c; bubble.thought = true;
+  return bubble;
+}
+
+// What the agent did this hour, as a small sign over its head (like the can, but only for the hour):
+// till, plant, water, harvest, refill, gather, examine, craft, give; zZz for a wait; a red cross for a
+// refused action. Drawn, not emoji, so it reads the same everywhere.
+function actIcon(act) {
+  const g = new PIXI.Container(), d = new PIXI.Graphics();
+  const badge = (fill) => d.roundRect(-11, -11, 22, 22, 6).fill({ color: 0x0b0e14, alpha: 0.85 }).stroke({ width: 1.5, color: fill });
+  const txt = (text, fill, size = 12) => { const t = new PIXI.Text({ text, style: { fontFamily: "JetBrains Mono", fontSize: size, fill, fontWeight: "700" } }); t.anchor.set(0.5); g.addChild(t); return t; };
+  g.addChild(d);
+  switch (act.kind) {
+    case "till":    badge(0xc8874a); for (const k of [-5, 0, 5]) d.moveTo(-6, k + 3).lineTo(6, k - 3).stroke({ width: 2, color: 0xc8874a }); break;
+    case "plant":   badge(0x7dff8a); d.moveTo(0, 7).lineTo(0, -3).stroke({ width: 2, color: 0x7dff8a });
+                    d.ellipse(-4, -4, 4, 2.5).fill(0x7dff8a).ellipse(4, -6, 4, 2.5).fill(0x7dff8a); break;
+    case "water":   badge(0x4de1ff); d.poly([0, -8, 5, 1, -5, 1]).fill(0x4de1ff).circle(0, 2, 5).fill(0x4de1ff); break;
+    case "refill":  badge(0x4de1ff); d.poly([0, -8, 5, 1, -5, 1]).fill(0x4de1ff).circle(0, 2, 5).fill(0x4de1ff);
+                    d.rect(-1, -2, 2, 7).fill(0x0b0e14).rect(-3.5, 0.5, 7, 2).fill(0x0b0e14); break;
+    case "harvest": badge(0xfff27a); d.circle(0, 1, 6).fill({ color: 0xfff27a, alpha: 0.35 }).circle(-2, 2, 2.5).fill(0xfff27a)
+                    .circle(2.5, 0, 2.5).fill(0xfff27a).circle(0, -3, 2.5).fill(0xfff27a); break;
+    case "gather":  badge(0x9aa3b5); d.rect(-6, -2, 6, 6).fill(0x9aa3b5).rect(1, -6, 5, 5).fill(0x6b7a90).rect(0, 1, 6, 5).fill(0x4b5260); break;
+    case "examine": badge(0xffb347); txt("?", 0xffb347, 14); break;
+    case "craft":   badge(0xffb347); txt("+", 0xffb347, 15); break;
+    case "give":    badge(0xe6e6e6); txt("→", 0xe6e6e6, 14); break;
+    case "refused": badge(0xff6b6b); txt("×", 0xff6b6b, 15); break;
+    case "wait": {
+      const z = txt("zZz", 0xaecbff, 11); z.anchor.set(0, 0.5); z.x = -2; g.removeChild(d);
+      g.zzz = true; break;
+    }
+  }
+  return g;
+}
+
+// Bubbles live in their own layer, above everyone: each starts above and to the right of its
+// speaker (to the left if another speaker stands to its right), then moves up until it overlaps
+// no bubble placed before it; a thin tail joins it to its speaker.
+function placeBubbles() {
+  const now = performance.now();
+  for (const b of Object.values(bodies)) if (b.bubble && b.bubble.alpha < 1 && (!b.showAt || now >= b.showAt)) b.bubble.alpha = Math.min(1, b.bubble.alpha + 0.12);
+  // Each body's thought first (nearest the head), then its speech above it.
+  const list = Object.values(bodies).sort((p, q) => q.box.y - p.box.y)
+    .flatMap((b) => [b.thought, b.bubble].filter(Boolean).map((bb) => ({ box: b.box, bubble: bb })));
+  const placed = [];
+  for (const b of list) {
+    const bb = b.bubble, ax = b.box.x, ay = b.box.y - 58;
+    const left = list.some((o) => o !== b && o.box.x > ax && Math.abs(o.box.x - ax) < 120);
+    let x = left ? ax - bb.w - 14 : ax + 14, y = ay - bb.h - 10;
+    for (let k = 0; k < 8; k++) {
+      const hit = placed.find((r) => x < r.x + r.w + 4 && x + bb.w + 4 > r.x && y < r.y + r.h + 4 && y + bb.h + 4 > r.y);
+      if (!hit) break;
+      y = hit.y - bb.h - 6;
+    }
+    bb.x = x; bb.y = y; placed.push({ x, y, w: bb.w, h: bb.h });
+    const tail = bb.children[0]; tail.clear();
+    const tx = left ? bb.w - 8 : 8;
+    if (bb.thought) {   // a thought trails off in small circles toward the head
+      for (const [k, r] of [[0.35, 3], [0.65, 2.2], [0.88, 1.5]]) tail.circle(tx + (ax - x - tx) * k, bb.h + (ay - y - bb.h) * k, r);
+      tail.fill({ color: bb.color, alpha: 0.85 });
+    } else tail.moveTo(tx, bb.h).lineTo(ax - x, ay - y).stroke({ width: 2, color: bb.color, alpha: 0.8 });
+  }
+}
+
+// A thought as shown: without the sentences that only restate where the other stands ("a is adjacent to
+// me and holds the can", "b is at (4,5), 2 steps away"); the full note stays in the run's turns.
+const WHERE = /\b(is|are|stands?|standing|now)\b[^.!?;]*\b(at \(\d+\s*,\s*\d+\)|adjacent|nearby|next to (me|you|us)|near me|close to me|\d+ (steps?|tiles?) away|in sight|within reach)/i;
+function belief(text) {
+  const kept = (text || "").split(/(?<=[.!?;])\s+/).filter((x) => x.trim() && !WHERE.test(x));
+  return kept.length ? kept.join(" ") : (text || "");
+}
+
+// The bubble keeps only the intention: no day or hour, no "Report:" tag, the first sentence, short.
+// The whole line stays in the conversation panel.
+function intent(text) {
+  let t = text
+    .replace(/^(Report|Proposal|Analysis|Warning)\s*:\s*/i, "")
+    .replace(/\s*\b(at\s+|on\s+)?(day|jour)\s*\d+\s*,?\s*(at\s*)?\d{1,2}:\d{2}\s*[-—:.,]?/gi, " ")
+    .replace(/^\s*\d{1,2}:\d{2}\s*[-—:.,]?\s*/, "")
+    .replace(/\s+/g, " ").trim();
+  const sentences = t.match(/[^.!?]+[.!?]?/g) || [t];
+  t = (sentences.find((x) => x.trim().split(" ").length >= 3) || sentences[0]).trim();
+  return t.length > 48 ? t.slice(0, 46).trimEnd() + "…" : t;
+}
+
+function dozeTick() {
+  for (const b of Object.values(bodies)) if (b.icon?.zzz && !STILL) { b.icon.y = -66 - 3 * Math.sin(skyClock * 2); b.icon.alpha = 0.7 + 0.3 * Math.sin(skyClock * 2); }
+}
+
+function fly(ms) {
+  for (let i = flights.length - 1; i >= 0; i--) {
+    const fl = flights[i]; fl.t = Math.min(1, fl.t + ms / 900);
+    const k = fl.t, ax = fl.from.x + 18, ay = fl.from.y - 30, bx = fl.to.x + 18, by = fl.to.y - 30;
+    fl.f.x = ax + (bx - ax) * k; fl.f.y = ay + (by - ay) * k - Math.sin(Math.PI * k) * 50;   // an arc
+    if (k >= 1) { fl.f.destroy({ children: true }); flights.splice(i, 1); }
+  }
+}
+
+function walk(ms) {
+  const speed = 0.12 * ms;   // pixels per frame: about 4 tiles a second
+  for (const b of Object.values(bodies)) {
+    if (!b.path.length) continue;
+    const [nx, ny] = b.path[0], [cx, cy] = iso(nx, ny), tx = cx, ty = cy + TH / 2;
+    const dx = tx - b.box.x, dy = ty - b.box.y, dist = Math.hypot(dx, dy);
+    if (dist <= speed) { b.box.x = tx; b.box.y = ty; b.path.shift(); }
+    else { b.box.x += dx / dist * speed; b.box.y += dy / dist * speed; }
+    b.box.zIndex = b.box.y;
+  }
+}
+
+function showTab(name) { document.querySelector(`nav button[data-tab="${name}"]`).click(); }
+
+function describe(s, x, y) {
+  const t = s.grid[y][x], spec = s.tiles[t.k] || {};
+  const bits = [`(${x},${y}) ${spec.name || t.k}`];
+  if (spec.soil) bits.push(t.t ? (t.w ? "labouré, arrosé" : "labouré, sec") : "non labouré");
+  if (t.c) bits.push(`${t.c.replace("_", " ")} ${t.r ? "mûr" : t.g + " j"}`);
+  return bits.join(" · ");
+}
+
+function panels(s) {
+  const goal = s.objective || {}, got = (s.harvested || {})[goal.harvest] || 0;
+  const w = s.clock?.work;
+  $("clock").innerHTML = `jour <b>${s.day}</b> · <b>${String(s.hour).padStart(2, "0")}:00</b> · ${isNight(s) ? "nuit" : "jour"}` +
+    (w ? ` · travail ${String(w[0]).padStart(2, "0")}h-${w[1]}h${isNight(s) ? " · <b>repos</b>" : ""}` : "") + ` · ${esc(s.world)}`;
+  $("harvest").innerHTML = `récolte <b>${got}</b> / ${goal.count} avant le jour ${goal.by_day}` +
+    (s.can_holder ? ` · can <b>${esc(nameOf(s.can_holder))}</b> ${s.can_charge}/${s.can?.size ?? "?"}` : "") +
+    " · énergie " + Object.entries(s.agents).map(([id, a]) => `<b>${esc(a.name || id)}</b> ${a.energy}/${s.max_energy}`).join(" ");
+  const tl = s.timeline || [], here = tl[replay.i];
+  $("when").textContent = here ? `j${here[1]} ${String(here[2]).padStart(2, "0")}:00 · ${replay.i}/${tl.length - 1} h` : "";
+  if (replay.on) { $("state").innerHTML = `<span class="badge replay">relecture</span>`; }
+  else $("state").innerHTML = s.done
+    ? `<span class="badge done">terminée${s.outcome ? " · " + (s.outcome === "won" ? "gagnée" : s.outcome === "lost" ? "perdue" : s.outcome) : ""}</span>`
+    : s.stale ? `<span class="badge stale">interrompue</span>` : `<span class="badge live">en cours</span>`;
+  const atTop = $("talk").scrollTop < 40;
+  const head = (l, verb) => `<span class="who" style="color:${css(color(l.agent))}">${esc(nameOf(l.agent))}</span> <span class="verb">${verb}</span>
+    <span class="when">j${l.day} ${String(l.hour).padStart(2, "0")}:00</span><br>`;
+  const anyNote = s.talk.some((l) => l.kind === "note");
+  // Thoughts fold: closed by default to the first words of the belief, unfolded one by one or all at once;
+  // the choice survives the refreshes (thoughts.open, thoughts.each).
+  const opened = (k) => k in thoughts.each ? thoughts.each[k] : thoughts.open;
+  // What was done: a short line in French, a red one for a refusal.
+  const at = (l) => ("x" in l ? ` (${l.x},${l.y})` : "");
+  const label = (i) => esc(String(i || "").replace(/_/g, " "));
+  const deed = (l) => ({ till: `laboure${at(l)}`, plant: `plante ${label(l.crop)}${at(l)}`, water: `arrose${at(l)}`,
+    refill: "remplit l'arrosoir", harvest: `récolte${at(l)}`, gather: `ramasse ${Object.entries(l.yields || {}).map(([k, n]) => `${n} ${label(k)}`).join(", ")}${at(l)}`,
+    examine: `examine${at(l)}`, craft: `fabrique ${label(l.recipe)}`, give: `donne ${l.item === "can" ? "l'arrosoir" : `${l.qty || 1} ${label(l.item)}`} à ${esc(nameOf(l.to))}`,
+    wait: "attend", move: `va en (${l.x},${l.y})`, refused: `refusé (${esc(l.action)}) : ${esc(l.reason)}` })[l.act] || esc(l.act);
+  const actLine = (l) => `<p class="line deed${l.act === "refused" ? " refused" : ""}">${head(l, "fait").replace("<br>", "")} <span class="what">${deed(l)}</span></p>`;
+  const thoughtLine = (l) => { const k = `${l.agent}|${l.tick}`;
+    return `<details class="line thought" data-k="${k}"${opened(k) ? " open" : ""}><summary>${head(l, "pense").replace("<br>", "")}
+      <span class="gist">${esc(intent(belief(l.partner)))}</span></summary>
+      <span class="tag">partenaire</span> ${esc(belief(l.partner))}<br><span class="tag">monde</span> ${esc(belief(l.world))}</details>`; };
+  $("talk").innerHTML = `<p class="hint">Ce qui est ${anyNote ? "<i>pensé</i> (une note privée que personne n'entend : ce que la persona croit de son partenaire et des règles du monde), " : ""}<b>fait</b> (ce que le monde a enregistré, refus et bots compris) et <b>dit</b> (entendu à moins de six cases), de la dernière heure à la première.
+      ${anyNote ? `<button id="thoughtsAll" class="fold">${thoughts.open ? "replier" : "déplier"} les pensées</button>` : ""}</p>`
+    + `<p class="hint"><button id="showDeeds" class="fold">${thoughts.deeds ? "masquer" : "montrer"} les actions</button></p>`
+    + (s.talk.length ? [...s.talk].reverse().filter((l) => l.kind !== "act" || thoughts.deeds).map((l) => l.kind === "note" ? thoughtLine(l)
+      : l.kind === "act" ? actLine(l) : `<p class="line">${head(l, "dit")}${esc(l.text)}</p>`).join("") : `<p class="hint">Personne n'a encore parlé.</p>`);
+  $("showDeeds").onclick = () => { thoughts.deeds = !thoughts.deeds; save("showDeeds", thoughts.deeds); panels(snap); };
+  const all = $("thoughtsAll");
+  if (all) all.onclick = () => { thoughts.open = !thoughts.open; thoughts.each = {}; save("thoughtsOpen", thoughts.open); panels(snap); };
+  if (atTop) $("talk").scrollTop = 0;   // the latest line first; reading further down is not interrupted
+  rules(s);
+  if (chosen) profile(s);
+}
+
+function rules(s) {
+  const label = { applied: "appliquée", met: "rencontrée", "not yet": "pas encore" };
+  let html = `<p class="hint">Déduites du journal, pas de ce que disent les personas : « rencontrée » = refusée au moins une fois ;
+    « appliquée » = au moins 3 réussites depuis le dernier refus. La pousse se lit dans les arrosages des cultures, jour par jour.</p>`;
+  for (const [id, rows] of Object.entries(s.rules)) {
+    html += `<h3 style="color:${css(color(id))}">${esc(nameOf(id))}</h3>`;
+    if (!rows.length) { html += `<p class="hint">Aucune règle rencontrée.</p>`; continue; }
+    html += `<table><tr><th>règle</th><th>état</th><th>refus</th><th>depuis</th></tr>` + rows.map((r) =>
+      `<tr><td>${esc(r.rule)}</td><td><span class="tag ${r.status.replace(" ", "")}">${label[r.status]}</span></td>
+       <td class="num">${r.growth ? "" : r.refused}</td><td>${r.growth ? "arrosages/j : " + r.after.join(" ") : r.after + " réussites"}</td></tr>`).join("") + `</table>`;
+  }
+  $("rules").innerHTML = html;
+}
+
+function profile(s) {
+  const a = s.agents[chosen]; if (!a) return;
+  const img = a.sprite && sprites[a.sprite] ? `<img class="portrait" src="/sprites/${a.sprite}.png" alt="">` : "";
+  const inv = Object.entries(a.inventory).map(([k, v]) => `${k.replace("_", " ")} ×${v}`).join(", ") || "rien";
+  const last = a.last.map((t) => t.actions.filter((x) => x.type !== "say").map((x) => x.type + (x.dir ? " " + x.dir : "") + (x.to ? " → " + x.to : "") + (x.x !== undefined ? ` (${x.x},${x.y})` : "")).join(", ")).join(" · ");
+  $("profile").innerHTML = `${img}<h3 style="color:${css(color(chosen))}">${esc(nameOf(chosen))}${nameOf(chosen) !== chosen ? ` <span class="hint">(${esc(chosen)})</span>` : ""}</h3>
+    <p>${esc(a.brain)}<br>étape ${a.stage ?? "?"}${a.extra?.length ? " + " + esc(a.extra.join(", ")) : ""}</p>
+    <p>énergie <b>${a.energy}</b> · ${a.can ? "tient le can (" + s.can_charge + "/" + (s.can?.size ?? "?") + ")" : "sans le can"}<br>inventaire : ${esc(inv)}</p>
+    <p>${a.turns} tours · ${a.refused} refus (${a.turns ? Math.round(100 * a.refused / a.turns) : 0} %) · jetons ${a.tokens[0]} / ${a.tokens[1]}</p>
+    <h3>Persona</h3><div class="persona">${esc(a.persona || "aucune (un nom seulement)")}</div>
+    ${a.note ? `<h3>Note privée (dernière heure)</h3><p><b>partenaire</b> : ${esc(belief(a.note.partner))}<br><b>monde</b> : ${esc(belief(a.note.world))}</p>` : ""}
+    <h3>Derniers gestes</h3><p>${esc(last)}</p>
+    <h3>Refus les plus fréquents</h3><table>${a.reasons.map(([r, n]) => `<tr><td>${esc(r)}</td><td class="num">${n}</td></tr>`).join("")}</table>`;
+}
+
+boot();
+</script>
+</body>
+</html>

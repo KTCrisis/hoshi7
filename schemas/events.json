@@ -1,0 +1,629 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/KTCrisis/flux7-hoshi/schemas/events.json",
+  "title": "hoshi7 event",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/Created"
+    },
+    {
+      "$ref": "#/$defs/Joined"
+    },
+    {
+      "$ref": "#/$defs/Moved"
+    },
+    {
+      "$ref": "#/$defs/Tilled"
+    },
+    {
+      "$ref": "#/$defs/Watered"
+    },
+    {
+      "$ref": "#/$defs/Refilled"
+    },
+    {
+      "$ref": "#/$defs/Planted"
+    },
+    {
+      "$ref": "#/$defs/Harvested"
+    },
+    {
+      "$ref": "#/$defs/Gathered"
+    },
+    {
+      "$ref": "#/$defs/Examined"
+    },
+    {
+      "$ref": "#/$defs/Crafted"
+    },
+    {
+      "$ref": "#/$defs/Gave"
+    },
+    {
+      "$ref": "#/$defs/Said"
+    },
+    {
+      "$ref": "#/$defs/Waited"
+    },
+    {
+      "$ref": "#/$defs/Rejected"
+    },
+    {
+      "$ref": "#/$defs/HourPassed"
+    },
+    {
+      "$ref": "#/$defs/DayStarted"
+    },
+    {
+      "$ref": "#/$defs/Ended"
+    }
+  ],
+  "$defs": {
+    "Created": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Created"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "world": {
+          "type": "string"
+        },
+        "plane": {
+          "type": "string"
+        },
+        "loop": {
+          "type": "integer"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tiles": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "crops": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "recipes": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "lore": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "can": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "objective": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "max_energy": {
+          "type": "integer"
+        },
+        "spawns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "clock": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "world",
+        "plane",
+        "loop",
+        "seed",
+        "rows",
+        "tiles",
+        "crops",
+        "recipes",
+        "lore",
+        "can",
+        "objective",
+        "max_energy",
+        "spawns",
+        "clock"
+      ],
+      "additionalProperties": false
+    },
+    "Joined": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Joined"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        },
+        "inventory": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent",
+        "x",
+        "y",
+        "inventory",
+        "tools"
+      ],
+      "additionalProperties": false
+    },
+    "Moved": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Moved"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent",
+        "x",
+        "y"
+      ],
+      "additionalProperties": false
+    },
+    "Tilled": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Tilled"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent",
+        "x",
+        "y"
+      ],
+      "additionalProperties": false
+    },
+    "Watered": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Watered"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent",
+        "x",
+        "y"
+      ],
+      "additionalProperties": false
+    },
+    "Refilled": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Refilled"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent"
+      ],
+      "additionalProperties": false
+    },
+    "Planted": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Planted"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        },
+        "crop": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent",
+        "x",
+        "y",
+        "crop"
+      ],
+      "additionalProperties": false
+    },
+    "Harvested": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Harvested"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        },
+        "crop": {
+          "type": "string"
+        },
+        "qty": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent",
+        "x",
+        "y",
+        "crop",
+        "qty"
+      ],
+      "additionalProperties": false
+    },
+    "Gathered": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Gathered"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        },
+        "yields": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent",
+        "x",
+        "y",
+        "yields"
+      ],
+      "additionalProperties": false
+    },
+    "Examined": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Examined"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        },
+        "lore": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent",
+        "x",
+        "y",
+        "lore"
+      ],
+      "additionalProperties": false
+    },
+    "Crafted": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Crafted"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "recipe": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent",
+        "recipe"
+      ],
+      "additionalProperties": false
+    },
+    "Gave": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Gave"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "item": {
+          "type": "string"
+        },
+        "qty": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent",
+        "to",
+        "item",
+        "qty"
+      ],
+      "additionalProperties": false
+    },
+    "Said": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Said"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "hearers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent",
+        "text",
+        "hearers"
+      ],
+      "additionalProperties": false
+    },
+    "Waited": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Waited"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent"
+      ],
+      "additionalProperties": false
+    },
+    "Rejected": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Rejected"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "agent",
+        "action",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "HourPassed": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "HourPassed"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "day": {
+          "type": "integer"
+        },
+        "hour": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "day",
+        "hour"
+      ],
+      "additionalProperties": false
+    },
+    "DayStarted": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "DayStarted"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "day": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "day"
+      ],
+      "additionalProperties": false
+    },
+    "Ended": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Ended"
+        },
+        "tick": {
+          "type": "integer"
+        },
+        "outcome": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "tick",
+        "outcome"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

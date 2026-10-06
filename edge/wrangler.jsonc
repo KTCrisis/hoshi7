@@ -1,0 +1,9 @@
+{
+  // In front of the tunnel to void: passes every request through, and answers with an
+  // offline page when void (and so the tunnel) does not answer.
+  "name": "hoshi7-edge",
+  "compatibility_date": "2026-10-01",
+  "main": "worker.js",
+  "routes": [{ "pattern": "hoshi.flux7.art/*", "zone_name": "flux7.art" }],
+  "workers_dev": false
+}
