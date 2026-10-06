@@ -22,10 +22,12 @@ itself). Two scripted bots harvest 7.
 | Claude Haiku 4.5 | 3.3 | 43 % |
 | Mistral Small 3.2 (local) | 0.7 | 67 % |
 
-Sonnet plays at the bots' level; the difficulty is the partner, not the farming. With a private note
-of beliefs, Haiku turns a bot that cannot hear it into "a competitor", and holds rules the world does
-not have ("crops die if dry for one day"). Details, statistics and their limits:
-[docs/results.md](docs/results.md).
+Sonnet plays at the bots' level; the difficulty is the partner, not the farming. A private note of
+beliefs, written each hour and heard by no one, separates the models as clearly as the harvest:
+Sonnet infers the bot's policy from the first hour, including that it cannot hear ("It may not read my
+messages"); Haiku turns the same bot into "a competitor" and holds rules the world does not have
+("crops die if dry for one day"); Mistral does not model its partner and believes the can is needed to
+till and plant. Details, statistics and their limits: [docs/results.md](docs/results.md).
 
 ## Run it
 

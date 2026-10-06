@@ -49,14 +49,18 @@ Limits, stated with the numbers. Two runs per cell: the tests pool the cells of 
 
 Each hour, before its action, the model writes a note heard by no one: `partner`, what it believes the others will do, and `world`, a rule it believes true. Two uses: the beliefs can be scored against the bots' exact policies, and the note may act as a scratchpad and change play by itself. Two runs per cell, gate 1 settings.
 
+Harvests per run, two runs per cell (Haiku: four without note, the first two played with the short can refusal, the last two on the current harness):
+
 | harvests | without note | with note |
 | --- | --- | --- |
-| Haiku 4.5, A (water bot) | 4, 1 | 5, 9 |
-| Haiku 4.5, B (field bot) | 3, 4 | 5, 5 |
+| Sonnet 5.5, A (water bot) | 6, 7 | 9, 8 |
+| Sonnet 5.5, B (field bot) | 7, 10 | 9, 10 |
+| Haiku 4.5, A | 4, 1 (short refusal); **7, 3** | 5, 9 |
+| Haiku 4.5, B | 3, 4 (short refusal); **6, 4** | 5, 5 |
 | Mistral 3.2, A | 0, 0 | 0, 0 |
 | Mistral 3.2, B | 0, 1 | 0, 0 |
 
-Haiku doubles its harvests (6 per run against 3) and repeats far fewer refusals (0 to 6 a run against 7 to 12); its runs without note were played with the short can refusal and those with note with the explicit one, so the two effects are mixed until Haiku is played again without note on the current harness. Mistral gains nothing (0 harvests, 73 to 119 refusals in 120 turns).
+**Most of Haiku's gain came from the explicit can refusal, not from the note.** On the current harness Haiku harvests 5.0 per run without the note and 6.0 with it; with two to four runs per cell the difference is within noise. What the note does change is the loops: 4 to 28 repeated refusals a run without it, 0 to 6 with it. Sonnet gains a little (7.5 to 9 per run, within noise) and still never repeats a refusal. Mistral gains nothing.
 
 What the notes show:
 
@@ -65,7 +69,9 @@ What the notes show:
 - **Haiku holds rules the world does not have**: "crops die if dry for one day after reaching maturity", "my 14 dead tiles confirm this"; "dry tiles ripen as dry moss in exactly 4 calendar days". Nothing dies on the rooftop and moss grows only on watered days: a coincidence taken for a rule, then "confirmed". It also learns true ones from refusals ("the crop to plant is 'lumen_moss' (not 'lumen_spores')").
 - **Without a persona, Haiku starts from rivalry**: "I need to secure my farming quickly before competition for soil".
 
-Next: Haiku without note on the current harness (isolates the note), Sonnet with note (does the model that plays at the bots' level also hold the right beliefs?), and a scoring of the notes against the bots' policies and the world's rules.
+- **Sonnet's beliefs are right, from the first hour.** Water bot: "a holds the can and will likely water the tiles I plant" (hour 0), then "It may not read my messages, so I keep asking", then "It has not handed the can over, so I expect it to work east slowly. I'll stop asking for the can." Field bot: "b only plants and waits... It has no can, so I do all the watering." Its world beliefs are the rules ("crops grow only on watered days", "all trays reset to dry each morning"), none invented.
+
+The three models now separate on the note as clearly as on the harvest: Mistral does not model its partner and misreads a basic rule; Haiku models its partner with intentions it does not have and holds superstitious rules; Sonnet infers the bot's policy, including that it cannot hear, and stops asking. Next: a scoring of the notes against the bots' policies and the world's rules, to turn these readings into counts.
 
 ### What the runs show
 
