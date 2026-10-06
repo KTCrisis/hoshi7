@@ -49,7 +49,7 @@ art/personas/  the personas' portraits at full resolution
 tools/         ladder.py (series of runs, results.jsonl), stats.py, gate_a.py, tiles.py, sprites.py
 schemas/       events.json, generated, checked by a test
 edge/          the Cloudflare Worker in front of the public viewer
-docs/          STRATEGY, SPEC, results, journal, related-work, decisions/, design/
+docs/          STRATEGY, SPEC, results, journal, related-work, decisions/
 runs/          run outputs, ignored by git, except the series' results (runs/ladder/results.jsonl,
                runs/pre-fix/ladder/results.jsonl)
 ```

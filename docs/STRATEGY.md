@@ -1,16 +1,21 @@
 # hoshi7 strategy
 
 Why this project exists, what it is trying to learn, and in what order.
-The contracts and rules live in [SPEC.md](SPEC.md); this file is the why and
-the when. Both are the common brief every working session starts from.
+The contracts and rules live in [SPEC.md](SPEC.md), the measures in
+[results.md](results.md); this file is the why and the when.
 
 ## The idea
 
-AI personas arrive in a small world with nothing. They farm, gather, craft,
-trade and talk, one in-game hour at a time, toward a goal the world states.
-Then the world ends, and a new one begins, in another plane, with another
-goal. The world forgets; the personas remember. What they carried over, and
-how they learned to work together, is what we watch and measure.
+AI agents arrive in a small world with nothing. They farm, gather, craft and
+talk, one in-game hour at a time, toward a goal the world states. There is one
+watering can for everyone, so they have to cooperate. Every action is an event
+in a log that replays alone, and the world knows the truth at every tick: what
+an agent believes about its partner and about the rules can be checked against
+it.
+
+Later, the world ends and a new one begins, in another plane, with another
+goal. The world forgets; the agents remember. What they carry over, and how
+they learn to work together, is the long-term question.
 
 Three influences, each for one thing:
 
@@ -26,6 +31,7 @@ Three influences, each for one thing:
 Three planes so far, one per aesthetic pole: **cyber** (a rooftop above a
 city), **Belle Epoque** (a glass and cast-iron conservatory), **space** (a
 greenhouse dome on an asteroid). The engine is the same; a plane is a file.
+The runs so far play on the rooftop.
 
 No asset, name or text is taken from those games. "Stardew-like" describes;
 it does not borrow.
@@ -42,79 +48,81 @@ Agents living in a small simulated world are not new:
 - Project Sid (Altera, 2024): hundreds of agents in Minecraft, roles and
   rules emerging.
 
-What this project adds, and only this:
+What this project adds today:
 
-1. **Governed actions.** Every action is a tool call through flux7-mesh. The
-   mesh traces are the world's history; a policy is a law of the world, and
-   can differ per agent. A human approval can stand for a god who decides.
-2. **Governed memory with continuity across worlds.** flux7-memory holds each
-   persona's memory, scoped by the identity the mesh vouches for: an agent
-   reads its own memory and the shared world's, never another agent's. The
-   bi-temporal store answers "what did Ada know at hour 40"; the hash chain
-   proves the history was not rewritten.
-3. **The loop as the experiment.** The world changes plane and goal between
-   runs; memory persists. The question is what transfers.
-4. **A measurable world.** The true state is known at every tick, which
-   turns "does the agent understand its world" into a calibration score.
+1. **Beliefs checked against the truth.** The partners can be scripted bots
+   whose policy is known exactly, and each hour an agent can write a private
+   note of what it believes about its partner and about the world's rules.
+   Every belief can be scored true or false, turn by turn, which a world of
+   LLM agents alone cannot offer.
+2. **A measurable, replayable world.** The world is event-sourced: a run's log
+   replays alone, the true state is known at every tick, every refusal of the
+   world is recorded, and the percept an agent received can be rebuilt from
+   the log.
+
+What it will add next:
+
+3. **Governed actions.** Every action will be a tool call through flux7-mesh
+   (mesh7, a policy proxy for agents' tool calls): a policy is a law of the
+   world, it can differ per agent, and the traces are the world's history.
+4. **Governed memory with continuity across worlds.** flux7-memory (mem7) will
+   hold each agent's memory, scoped by the identity the mesh vouches for: an
+   agent reads its own memory and the shared world's, never another agent's.
+   The bi-temporal store answers "what did this agent know at hour 40"; the
+   hash chain proves the history was not rewritten.
+5. **The loop as the experiment.** The world will change plane and goal
+   between runs while memory persists; the question is what transfers, false
+   beliefs included.
 
 ## What we want to learn
 
-1. Can LLM personas play a clear goal at all, in a long loop, with a small
-   local model? (The gate; see Roadmap.)
-2. Do two personas cooperate when the goal requires it, and how: dividing
-   the work, sharing the one can, keeping promises?
-3. Does anything carry over from one loop to the next: conventions, roles,
-   trust, knowledge of the lore?
-4. Does an agent with an explicit belief do better than an LLM alone?
-5. Does the persona change what an agent decides, or only how it speaks?
+1. **Can an LLM agent play a clear goal with a partner at all?** Answered on
+   the rooftop (gate 1): Claude Sonnet 5.5 plays at the scripted bots' level,
+   Claude Haiku 4.5 harvests about half as much, the local models tried fail
+   (gpt-oss 20b already alone; Mistral Small 3.2 as soon as it must reason
+   about its partner). The difficulty is the partner, not the farming.
+2. **What does an agent believe about its partner and about the world, are
+   those beliefs true, and how do they shape what it does?** The private note
+   gives the first answers (Sonnet infers the bot's policy, Haiku attributes
+   intentions to it and holds superstitious rules, Mistral does not model it);
+   the next step is to count them, and to see when a belief forms and whether
+   a refusal corrects it.
+3. **Does the persona change what an agent decides, or only how it speaks?**
+4. **Do agents discover rules and places that are not given to them?** The
+   `--pure` version removes what hands the rules over; the counter-intuitive
+   test world (moss that grows on dry days) separates discovery from prior
+   knowledge.
+5. **Does anything carry over from one loop to the next**: conventions, roles,
+   trust, knowledge of the lore, and false beliefs?
 
-Question 4 joins Marc's research on LLM agents with an explicit Bayesian
-belief (a separate study): the LLM, or Jev, as a sensor of
-likelihoods, the belief as a projection of an event log, the choice and the
-stop computed. Here that becomes:
-
-- **Partial sight**: an agent sees 5 tiles and hears 6; what it believes
-  about the rest is a belief, and the world knows the truth.
-- **Trust**: Jev classifies a sentence (`Said`) into a commitment ("I will
-  water the east row before noon"); the log says whether it was kept; trust
-  in a partner is a Beta(kept, broken) computed from events, not an
-  impression of the LLM. It extends the rumor experiment, with sources whose
-  reliability can be observed.
-- **Explore or exploit**: examining lore (knowledge for a future loop)
-  against farming now is a value-of-information choice. Whether the least
-  action formalism fits it is an open question, not a claim.
-
-A limit to keep in view: for one agent in a small world an exact optimum can
-be computed (as in experiment 1 of the Bayes study). For two agents with
-partial observation the problem is a Dec-POMDP, NEXP-complete in general
-(Bernstein et al., 2002). There will be no exact oracle, only reference
-brains: the scripted bots, the LLM alone, the hybrid.
-
-### Who decides and who speaks (question 5)
+### Who decides and who speaks (question 3)
 
 An LLM agent playing a character mixes two things: the character colors its
-choices as well as its words. The hybrid separates them: the decision is
-computed, the persona is a voice. In hoshi7 the voice is not cosmetic: what a
-persona says moves its partner's belief (a commitment read by Jev, trust
-computed from kept promises), so the character reaches the outcome through
-one measurable channel, speech.
+choices as well as its words. A hybrid brain separates them: the model picks
+an intention and code carries it out, or the decision is computed from an
+explicit belief, and the persona is a voice. The voice is not cosmetic: what a
+persona says moves its partner's belief, so the character reaches the outcome
+through one measurable channel, speech.
 
-Design: brain (LLM alone, hybrid) crossed with persona (two to four
-contrasted characters, from avatar7), same worlds, same seeds.
+Design: brain (LLM alone, hybrid) crossed with persona (contrasted characters:
+VESPER, a cold strategist; LEDGER-7, a support unit; MOTE, a curious one),
+same worlds, same seeds, and the private note in every arm.
 
 - **H1**: with an LLM alone, the persona changes the outcome (harvest,
   refusals, cooperation): character biases decision.
 - **H2**: with the hybrid, the persona's effect shrinks to the speech
   channel: clarity of commitments, the partner's trust.
 
-H2 is a hypothesis to measure, not a property of the architecture: the
-hybrid still consumes Jev's readings, and a persona's style may sway them.
-Run-to-run variance of LLM agents (seen in the Bayes study) sets how many
-runs each cell needs, and so the cost.
+H2 is a hypothesis to measure, not a property of the architecture. Run-to-run
+variance of LLM agents sets how many runs each cell needs, and so the cost.
 
-### What survives a loop: memory as reconstruction (question 3)
+For two agents with partial observation the problem is a Dec-POMDP,
+NEXP-complete in general (Bernstein et al., 2002): there is no exact oracle,
+only reference brains: the scripted bots, the LLM alone, the hybrid.
 
-Three results from the study of human memory frame what a persona keeps:
+### What survives a loop: memory as reconstruction (question 5)
+
+Three results from the study of human memory frame what an agent keeps:
 
 - **Bartlett (1932, *Remembering*)** had English students retell a Native
   American tale, *The War of the Ghosts*, several times over weeks, and
@@ -132,7 +140,7 @@ Three results from the study of human memory frame what a persona keeps:
   becomes labile and is stored again, possibly changed. To recall is to
   rewrite a little.
 
-hoshi7 can give each persona the same two layers: **episodes**, faithful and
+hoshi7 can give each agent the same two layers: **episodes**, faithful and
 perishable (correspondence), and a **journal** written in the persona's own
 voice from them, which survives the loop (coherence). Each new journal is
 written with the earlier ones in mind, a form of reconsolidation. When the
@@ -141,34 +149,25 @@ world restarts, only the journal carries over.
 What the human studies lack and hoshi7 has is the original: the event log
 is exact ground truth. Bartlett had to infer the drift; here it is measured.
 
-- **Distortion**: distance between a persona's journal and the log, per
-  persona, per loop.
-- **Divergence**: distance between two personas' memories of the same event
+- **Distortion**: distance between an agent's journal and the log, per agent,
+  per loop.
+- **Divergence**: distance between two agents' memories of the same event
   ("B forgot to water" against "the drought").
-- **Transmission**: `say` passes a memory from one persona to another, who
+- **Transmission**: `say` passes a memory from one agent to another, who
   rebuilds it; across loops this is Bartlett's serial reproduction between
-  agents. Does a useful convention survive the chain?
+  agents. Does a useful convention survive the chain? Does a false belief?
 
-- **H3**: what carries over between loops, and how well two personas
-  cooperate in the next one, depends on how each reconstructs memory, not
-  on character alone. Divergence on shared events predicts broken
-  cooperation; or, counter-intuitively, biased but compatible memories
-  cooperate better than accurate ones.
-
-The trust of question 4, Beta(kept, broken), would then be fed by remembered
-events as well as logged ones: the gap between the two is itself a measure.
+- **H3**: what carries over between loops, and how well two agents cooperate
+  in the next one, depends on how each reconstructs memory, not on character
+  alone. Divergence on shared events predicts broken cooperation; or,
+  counter-intuitively, biased but compatible memories cooperate better than
+  accurate ones.
 
 A check on the bridge: an LLM summarizing its episodes is not a human
-reconstructing a memory. The correspondence is of form (two layers, a
-summary written by a biased writer, rewritten on recall), not an identity of
+reconstructing a memory. The correspondence is of form (two layers, a summary
+written by a biased writer, rewritten on recall), not an identity of
 mechanism; the human results suggest what to measure, they predict nothing
 here.
-
-First rehearsal, outside the game: avatar7's personas already keep episodes
-(30 days) and journals in a mem7 of their own (`mem7-play`), each reading
-only its own memory. Their first journals interpret as much as they record;
-whether that deepens or caricatures over weeks, and whether a contradicting
-fact is integrated or bent to fit, is the small version of H3.
 
 ## The frame: AI in video games
 
@@ -194,22 +193,18 @@ How this stack answers each, and the measure that checks it in hoshi7:
 
 | Tension | Answer | Measure |
 | --- | --- | --- |
-| Control | mesh7 policy: what an NPC may do is a rule enforced on every action, traced | actions refused by policy; actions outside the rules that got through (must be 0) |
-| Consistency | mem7 scopes: an NPC knows only what it lived or the world showed it; bi-temporal reads | information leaks across scopes (must be 0); contradictions with the agent's own log |
-| Cost | local model; the decision is computed, the LLM only reads and speaks | tokens and seconds per in-game hour, per brain |
+| Control | mesh7 policy (planned): what an NPC may do is a rule enforced on every action, traced | actions refused by policy; actions outside the rules that got through (must be 0) |
+| Consistency | mem7 scopes (planned): an NPC knows only what it lived or the world showed it; bi-temporal reads | information leaks across scopes (must be 0); contradictions with the agent's own log |
+| Cost | a hybrid brain: the decision computed or executed by code, the LLM reads and speaks; prompt caching | tokens, dollars and seconds per in-game hour, per brain |
 | Testability | event-sourced world, recorded turns, percepts rebuilt from the log | a run replayed from its log gives the same state; scripted runs are bit-identical |
 
 What is not new: a computed decision (GOAP has done it for twenty years), a
-generated voice. What may be new, to be checked against the state of the
-art before any claim: **the LLM as a reliable sensor of free language**
-feeding a belief that keeps the decision in the designer's hands. A player,
-or another NPC, says a sentence; Jev turns it into a commitment with a
-probability; the belief updates; the behavior stays governed. Current LLM
-NPCs lack exactly this: understanding free speech without handing over
-control.
-
-A public write-up of this frame carries Marc's voice: it is written by him
-(inverse loop), not drafted for him.
+generated voice. What may be new, to be checked against the state of the art
+before any claim: **the LLM as a reliable sensor of free language** feeding a
+belief that keeps the decision in the designer's hands. A player, or another
+NPC, says a sentence; a small judging model turns it into a commitment with a
+probability; the belief updates; the behavior stays governed. Current LLM NPCs
+lack exactly this: understanding free speech without handing over control.
 
 ## Rules of honesty
 
@@ -219,37 +214,40 @@ A public write-up of this frame carries Marc's voice: it is written by him
 - Every bridge to theory is checked: an identity, a precise correspondence,
   or only a resemblance of form? Corrections are made visibly.
 - The scripted bots are the floor and the scale, not the opponent.
+- The harness is part of the measure. A change to what the agents see makes
+  earlier runs incomparable: they are archived, or shown unchanged by replay.
 
 ## Roadmap, with gates
 
-Each phase ends on something run and measured. A gate decides whether the
-next phase is worth its cost.
+Each step ends on something run and measured. A gate decides whether the next
+step is worth its cost.
 
-| Phase | Content | Done when | Where |
-| --- | --- | --- | --- |
-| 1 | World engine: event-sourced, three planes | tests pass, log replays | done |
-| 1b | Playable loop: action catalog, percept, brains, runner, calibration | one scripted agent loses, a scripted pair wins, references recorded | done |
-| 0 | Infra on void: mem7 token and scopes, `memory` upstream over streamable HTTP with `forward_identity`, one mesh7 identity per persona | a scoped read is refused across agents | void |
-| 2 | The world as an MCP server behind mesh7; actions as tools, traces as history | a scripted brain plays through the mesh | void |
-| 3 | One LLM persona (Ollama, `gpt-oss:20b`) | **Gate A**: completes a farming cycle coherently in one in-game day; otherwise change model, add Haiku at key moments, or structure the agent | void |
-| 4 | Two personas, private and shared memory | a run with both, measures written | void |
-| 5 | Loops: the same pair across planes and goals | transfer measures compared with a pair without memory | void |
-| 6 | Research arms: LLM alone, hybrid (belief + Jev + value of information), scripted; crossed with personas (question 5); the four game-AI measures | the comparison table, with the Bayes study's protocol | void |
-| 7 | Presentation, layer 1: a flux7-mods mod replays a run with the personas' faces, lines and Piper voices, as in avatar7 | a run watched end to end | flux7-mods |
-| 8 | Presentation, layer 2: animation (web with Phaser or PixiJS in TypeScript, or Godot) on the same event contract | only after a result worth watching | later |
+| Step | Content | State |
+| --- | --- | --- |
+| Engine | event-sourced world, three planes, action catalog, percept, scripted brains, runner, calibration | done |
+| LLM brains | Ollama and Claude brains, harness stages, options (`present`, `coords`, `seen`, `note`, `pure`), viewer | done |
+| Gate 1: capacity | each model with a fixed scripted partner and with itself | done (results.md) |
+| Beliefs | the private note; then a scoring of every note against the bots' policies and the world's rules | note done; scoring next |
+| Gate 2: hybrid | the model picks an intention, code carries it out: does a cheaper model play once execution is taken from it? | next |
+| Gate 3: persona | VESPER, LEDGER-7, MOTE crossed with LLM alone and hybrid (H1, H2); a bot that hands the can over on request makes negotiation measurable | planned |
+| Gate 4: discovery | `--pure` and `--with seen`, on the rooftop and the counter-intuitive world | planned |
+| Governed world | the world as an MCP server behind mesh7; one identity per agent; mem7 memory with scopes | planned |
+| Loops | the same agents across planes and goals; transfer measures against agents without memory; H3 | planned |
 
-Marc can play as well as watch: a human is one more identity in the mesh,
-and a `human` brain is one more brain. Nothing in the engine may assume an
-LLM behind an agent.
+A human can play as well as watch: a human is one more identity, and a
+`human` brain one more brain. Nothing in the engine may assume an LLM behind
+an agent.
 
 ## Risks
 
-- **Long-loop degradation**: repetition, lost goals, waiting forever. Gate A
-  is there for it.
-- **Malformed actions** from a small model: constrained JSON, `wait` when
-  the answer is invalid, and the refusal is logged (it is data).
-- **Memory reset**: continuity is the point, starting over must stay
-  possible. One identity per lineage (`ada-1`, `ada-2`).
+- **Long-loop degradation**: repetition, lost goals, waiting forever. Measured
+  as repeated refusals per run, never broken by the harness.
+- **Malformed actions**: constrained JSON, `wait` when the answer is invalid,
+  a missing parameter named in the refusal (it is data).
+- **A biased harness**: what the agents see is part of the measure; a defect
+  there biases every result (one did, until 2026-10-06).
+- **Cost**: the model that plays well is a paid one; prompt caching, the
+  hybrid and local models for long series keep it in check.
 - **Scope**: a Stardew-like game client is years of work for one person
   (Stardew took four and a half). The client stays a viewer until the
   agents give something worth watching.
