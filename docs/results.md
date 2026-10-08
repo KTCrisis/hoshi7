@@ -230,6 +230,28 @@ A version whose decision is computed from the belief (Velens, not part of this r
 in each of four runs with Claude Haiku 5.5, cell A, at 0.05 $ a run: the level of the scripted bots,
 with no run under 6, below Sonnet's 8. Reported here as a vendor result: its method is not published.
 
+### The optimum's ceiling: an upper bound on the pair's harvest (2026-10-09, tools/bound.py)
+
+An integer program at the scale of the day: an all-seeing planner commanding both agents, crops in daily
+cohorts watered four days running, the hours, energy, one can of 10 with a 3-hour refill trip, 24 trays,
+the seeds and the recipe; walking counted at its most optimistic. Everything left out lowers the true
+optimum, so these are ceilings.
+
+| days | at most | scripted pair (bots) | best measured |
+| --- | --- | --- | --- |
+| 6 | 11 | 7 | 8 (Claude Sonnet 5.5) |
+| 12 | 22 | | |
+| 18 | 44 | | |
+| 28 | 66 | 60 (calibration) | |
+
+- **The can binds**: at most 11 waterings a day once refills start (20 hours: 11 waterings, two 3-hour
+  trips, three moves), 10 on day 1 with the can full. With a crop needing four watered days, a six-day run
+  holds about one cohort of 10 to 11 crops.
+- At six days the bots reach 64 % of the ceiling, Sonnet 73 %; at 28 days the bots reach 91 %: the
+  greedy plays far from the optimum on a short run, its losses being the start, not the steady state.
+- The ceiling is not proven reachable (walking between distant tiles, who stands where, handing the can
+  over are left out); the true optimum lies between the best play measured and it.
+
 ### Open
 
 - Gate 1 is answered, cell A' included. Before gate 3: a private `note` in two parts, `partner` (what the model believes of the other) and `world` (the rule it believes it found), and `say` made optional; with the bots the partner's policy is known exactly, so a belief can be scored.

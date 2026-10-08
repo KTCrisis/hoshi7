@@ -8,6 +8,7 @@ dependencies = ["pyyaml>=6.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+bound = ["scipy>=1.11"]   # tools/bound.py, the upper bound on the harvest
 # Claude brains (claude:<model>), through the Anthropic API
 claude = ["anthropic>=0.100"]
 # the image tools (tools/tiles.py, tools/sprites.py)

@@ -233,3 +233,14 @@ def test_an_extension_brain_without_its_package_is_refused_clearly():
         return  # installed here: the hook is exercised by the extension's own tests
     with pytest.raises(ValueError, match="extension that is not installed"):
         brain("pro:b2:claude:claude-haiku-5-5", "a")
+
+
+def test_the_bound_sits_above_what_the_scripted_pairs_reach():
+    pytest.importorskip("scipy")
+    import sys
+    sys.path.insert(0, str(ROOT / "tools"))
+    from bound import bound
+    spec = load(ROOT / "worlds" / "rooftop.yaml")
+    six = bound(spec, 6)
+    assert six["optimal"] and six["harvest"] >= 8                                  # Sonnet's 8 in six days
+    assert bound(spec, 28)["harvest"] >= spec["reference"]["split_pair"]            # the calibrated 60
