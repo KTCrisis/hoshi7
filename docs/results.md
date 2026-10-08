@@ -110,6 +110,126 @@ How far to trust these numbers:
 
 The solo control shows the runner fix at work: 15 % refused against 32 % for the same cell before it (3 runs), same work done.
 
+### Gate 2: Claude Haiku 4.5 (2026-10-08)
+
+Hybrid against alone, four runs against four, private note on, harvests per run, exact one-sided
+permutation test (docs/gate2-plan.md):
+
+| cell | alone | hybrid | difference | p | random intention (floor) |
+| --- | --- | --- | --- | --- | --- |
+| A: Haiku farms, the water bot holds the can | 5.25 (5, 9, 1, 6) | 4.75 (1, 7, 4, 7) | -0.5 | 0.64 | 2 |
+| B: Haiku holds the can, the field bot farms | 4.75 (5, 5, 3, 6) | 6.5 (7, 7, 6, 6) | +1.75 | 0.043 | 0 |
+
+- **G2-H1 holds in cell B, not in cell A.** Holding the can is mostly execution (the dry tile, the way
+  to the cistern), and the executor takes it over. Farming next to a bot that waters is not limited by
+  execution.
+- **What limits cell A is the belief about the partner (G2-H2).** Hybrid Haiku spends its hours
+  negotiating with the water bot: 135 `make_seeds` aimed at the grow lamp it promised as a trade, 79
+  `gather` for its parts, 37 `ask_can`; Sonnet in the same cell chose `farm` 121 times and `make_seeds`
+  12. Haiku takes 65 % of its opportunities on day 1, then about 10 % on days 2 to 4 (hoshi7/curve.py);
+  62 % of its notes give the bot an intention (beliefs, above).
+- **Gate 2 for Haiku 4.5: passed in cell B, not in cell A.** Its hybrid beats the floor in both cells;
+  the floor rests on one run per cell (amendment 2).
+- **Temperature (G2-X3, exploratory).** At 0.15, cell A: 2.0 harvests a run (0, 6, 0, 2), and two runs
+  of four freeze on one intention (96 repeats, 88 and 61 distinct partner notes of 120). Low temperature
+  fixes Haiku as it fixed Mistral, in half the runs; prediction P6 was wrong.
+- **Cost.** The hybrid refuses nothing (28 to 36 % alone) and costs less: 0.48 to 0.54 $ a run against
+  0.73 to 0.82 $ alone. In cell B it reaches 81 % of hybrid Sonnet's harvest (6.5 against 8.0) for about
+  half the price.
+
+Haiku 4.5 plays once execution is taken from it, except where it must see that its partner is a
+machine. That is the case for version b: a belief about the partner computed from kept commitments,
+not guessed.
+
+### Gate 2: Claude Haiku 5.5, a quick comparison (2026-10-08, amendment 4)
+
+Hybrid, cell A (the water bot holds the can), four runs, at the model's defaults (thinking on, default
+temperature):
+
+| model | harvest (runs) | cost a run | opportunities taken, days 1 to 6 |
+| --- | --- | --- | --- |
+| Claude Haiku 4.5 | 4.75 (1, 7, 4, 7) | 0.48 $ | 0.65 · 0.10 · 0.11 · 0.15 · 0.79 · 0.31 |
+| Claude Haiku 5.5 | 6.5 (6, 9, 5, 6) | 0.05 $ | 0.81 · 0.26 · 0.29 · 0.20 · 0.46 · 0.40 |
+| Claude Sonnet 5.5 | 8.0 (2 runs) | 1.02 $ | about 1.0 on every day with something to do |
+
+- Haiku 5.5 harvests 1.75 more than Haiku 4.5 (exact one-sided permutation p = 0.23, four against four:
+  not significant) at a tenth of its cost, and a twentieth of Sonnet's.
+- Its error changes in kind, not in substance. It no longer negotiates (4 `make_seeds`, no lamp, no
+  scrap) but chooses `ask_can` 272 times in 480 hours, and its notes invent a condition for the bot's
+  silence ("a may only hand it over once I am adjacent"). It still lends the bot a will to give.
+- Two runs alone in the same cell, for H1 of the persona gate, are under way.
+
+### Version b1.0: the trust shown, Claude Haiku 5.5 (2026-10-08, docs/version-b-plan.md)
+
+Hybrid, cell A (the water bot holds the can), four runs each, with and without the line "you asked a
+for the can N times; it was given K times. Chance that asking again gets it: p" (Beta(1, 1) mean):
+
+| Claude Haiku 5.5, cell A | a, no line | b1, the line |
+| --- | --- | --- |
+| hours on `ask_can` | 57 % | 14 % |
+| hours on `ask_can` once the chance is under 0.10 | 63 % | 10 % |
+| opportunities taken, days 2 to 4 | 0.20 to 0.29 | 0.64 to 0.88 |
+| `farm` intentions | 151 | 239 |
+| harvest (runs) | 6.5 (6, 9, 5, 6) | 5.25 (0, 7, 8, 6) |
+| cost a run | 0.05 $ | 0.05 $ |
+
+- **The counted belief corrects the decision.** Haiku stops asking and farms; its notes follow the
+  count ("a has ignored about seven asks, so it will probably keep watering its own tiles"). No
+  belief-action gap shows here: shown the chance, it acts on it.
+- **The harvest does not follow, because of one run.** In the run at 0 it planted 15 tiles, which the
+  bot watered 52 times, then spent 51 hours on `explore` and never harvested; the water bot does not
+  harvest. Freed from the can, it did not know what to do with its time. Four runs with one at 0 cannot
+  settle the harvest; the change in behaviour is clear.
+- Prediction P11: half right.
+- **b1.1 missed the requests made at a distance**, which personas make (amendment 2); b1.2 counts a
+  request the holder heard.
+- **b1.0 counted walks as asks** (33 of 67 counted hours; docs/version-b-plan.md, amendment 1). Against
+  this bot the count only fell faster than the evidence; b1.1 counts an ask only next to the holder.
+
+### The local arm: gpt-oss 20B, hybrid, cell A (2026-10-08, amendment 3)
+
+| gpt-oss 20B, hybrid, cell A | harvest (runs) | distinct partner notes of 120 | most chosen intentions |
+| --- | --- | --- | --- |
+| T 0.15 | 2.5 (2, 2, 4, 2) | 17, 25, 42, 46 | `water` 24 to 91 (without the can), `ask_can` 11 to 50 |
+| T 1.0 | 2.25 (2, 2, 3, 2) | 79 to 98 | `ask_can` 73 to 80 |
+
+- It farms a little (planted about 5 a run) and harvests 2 to 4, where Mistral harvested 0; far below
+  Claude Haiku 5.5 (6.5) at no cost. The futility rule stopped none of the eight runs.
+- At 0.15 it chooses `water` most hours without holding the can (an infeasible intention, the hour
+  lost); at 1.0 it asks for the can instead. The temperature unfreezes its notes (17 to 46 distinct
+  at 0.15, 79 to 98 at 1.0), as G2-X1 expected of Mistral, but not its harvest.
+- P5 is not scored: the keyword rule fires at hour 0 (predictions.md).
+
+### Personas, VESPER and MOTE: who plays a character (2026-10-08, exploratory)
+
+Hybrid, private note on, no bot: VESPER (keeps the can, speaks rarely) holds the can first, MOTE
+(curious, asks questions). 1 to 2 runs a cell: tendencies, not tests.
+
+| VESPER and MOTE | VESPER gives the can | VESPER's lines | VESPER's words | MOTE's questions | harvest |
+| --- | --- | --- | --- | --- | --- |
+| Claude Sonnet 5.5 (a, b1.1, b1.2) | 0 | 28 to 30 | 339 to 358 | 117 | 8 |
+| Claude Haiku 4.5 | 4, 5 | 10, 17 | 108, 253 | 30, 14 | 6, 3 |
+| Claude Haiku 5.5, thinking | 6 to 8 | 92 to 109 | 1,750 to 2,000 | 13 to 26 | 5 to 8 |
+| Claude Haiku 5.5, no thinking | 2, 5 | 90, 114 | 1,409, 1,722 | 12, 29 | 6, 4 |
+
+- **Two axes of fidelity.** Speech: Sonnet and Haiku 4.5 keep VESPER terse; Haiku 5.5 does not, with
+  or without thinking, so its talkativeness is the model's, not its thinking's. Action: only Sonnet's
+  VESPER keeps the can; every Haiku gives it. MOTE's curiosity (117 questions) is Sonnet's alone.
+- **No drift**: Haiku 5.5's VESPER promises the can from its first line ("then I will give you the can")
+  and talks as much on day 6 as on day 1; it reads the character softer from the start.
+- **For the persona gate**: fidelity is measured before any effect, on both axes; a model that does not
+  play the character cannot show its effect.
+- **The trust line between personas** (b1.2, a request counts when the holder heard it): Sonnet's MOTE
+  stops after 5 refusals heard ("She has not handed it over in 5 asks, so I stop asking"); Haiku's MOTE,
+  answered about one time in seven, asks in 12 to 13 hours against 22 to 39 without the line. Harvests
+  stay 5 to 8 throughout. The b1.0 and b1.1 persona runs counted asks wrongly and are not read.
+
+### A computed decision (2026-10-08)
+
+A version whose decision is computed from the belief (Velens, not part of this repository) harvests 7
+in each of four runs with Claude Haiku 5.5, cell A, at 0.05 $ a run: the level of the scripted bots,
+with no run under 6, below Sonnet's 8. Reported here as a vendor result: its method is not published.
+
 ### Open
 
 - Gate 1 is answered, cell A' included. Before gate 3: a private `note` in two parts, `partner` (what the model believes of the other) and `world` (the rule it believes it found), and `say` made optional; with the bots the partner's policy is known exactly, so a belief can be scored.

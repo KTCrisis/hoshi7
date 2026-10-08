@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import time
 from collections import Counter, defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -52,13 +53,52 @@ RULES = [
 
 
 WORLDS = {"rooftop": "toit", "rooftop-counter": "toit à l'envers", "conservatory": "serre", "station": "dôme"}
-BRAINS = {"haiku": "Haiku", "sonnet": "Sonnet", "gpt-oss": "gpt-oss", "mistral": "Mistral", "scripted": "bot"}
+#: The scripted brains, by what they do (the bots of the cells): water, till and plant, or water and give.
+BOTS = {"scripted-water": "bot eau", "scripted-field": "bot labour", "scripted-giver": "bot eau qui donne",
+        "scripted": "bot fermier", "idle": "inactif"}
 
 
-def brain_name(kind: str) -> str:
-    k = kind.lower()
-    base = " base" if k.startswith("base:") or "-base" in k else ""
-    return next((v for key, v in BRAINS.items() if key in k), kind.split(":")[-1]) + base
+def hybrid_version(extra: Any) -> str:
+    """Which hybrid (docs/gate2-plan.md, docs/version-b-plan.md): a, the intention only; b1, plus the trust
+    in the can's holder, counted and shown: b1.0 (`trust`) counted every hour on ask_can, walks included;
+    b1.1 (`trust2`) counts only an hour next to the holder with a request said."""
+    if "trust3" in str(extra):
+        return "b1.2"
+    if "trust2" in str(extra):
+        return "b1.1"
+    return "b1.0" if "trust" in str(extra) else "a"
+
+
+def brain_name(kind: str, extra: Any = ()) -> str:
+    """The brain with its exact model and version, so two generations never read alike:
+    intent:claude:claude-haiku-5-5 -> "Claude Haiku 5.5 · hybride", chat:mistral-small3.2:24b ->
+    "Mistral Small 3.2 24B", scripted-water -> "bot eau"."""
+    if kind.startswith("pro:") and kind.count(":") >= 2:   # an extension brain: pro:<version>:<model>
+        _, version, inner = kind.split(":", 2)
+        return f"{brain_name(inner)} · hybride {version} (Velens)"
+    hybrid = kind.startswith("intent:")
+    k = kind.removeprefix("intent:")
+    if k in BOTS:
+        name = BOTS[k]
+    elif k == "random":
+        name = "intention au hasard"
+    elif m := re.fullmatch(r"claude:claude-([a-z]+)-(\d+)-(\d+)", k):
+        name = f"Claude {m[1].capitalize()} {m[2]}.{m[3]}"
+    else:
+        base = k.startswith("base:") or "-base" in k.lower()
+        model = k.split(":", 1)[1] if k.startswith(("chat:", "base:")) else k
+        model, _, quant = model.split("/")[-1].replace("-GGUF", "").partition(":") if "/" in model else (model, "", "")
+        model = re.sub(r"-base(-\d+)?$", "", model, flags=re.IGNORECASE)
+        if quant:   # a Hugging Face file: its name, readable, and its quantization
+            model = model.replace("-", " ") + f" {quant}"
+        if m := re.fullmatch(r"mistral-small(\d+\.\d+)(?::(\d+)b)?", model, re.IGNORECASE):
+            name = f"Mistral Small {m[1]}" + (f" {m[2]}B" if m[2] else "")
+        elif m := re.fullmatch(r"([a-z0-9.-]+?):(\d+)b", model, re.IGNORECASE):
+            name = f"{m[1]} {m[2]}B"
+        else:
+            name = model
+        name += " (base)" if base else ""
+    return name + (f" · hybride {hybrid_version(extra)}" if hybrid else "")
 
 
 def label(run: Path, meta: dict[str, Any], summary: dict[str, Any], live: bool) -> str:
@@ -67,7 +107,9 @@ def label(run: Path, meta: dict[str, Any], summary: dict[str, Any], live: bool) 
     when = f"{stamp[6:8]}/{stamp[4:6]} {stamp[9:11]}:{stamp[11:13]}" if stamp[:8].isdigit() else run.name
     personas = meta.get("personas") or summary.get("personas") or {}
     brains = meta.get("agents") or {a: v.get("brain", "") for a, v in summary.get("agents", {}).items()}
-    names = [display(personas.get(a, ""), a) if personas.get(a) else brain_name(b) for a, b in brains.items()]
+    extra = meta.get("extra", []) + (["nothink"] if meta.get("no_thinking") else [])
+    names = [f"{display(personas.get(a, ''), a)} {brain_code(b, extra)}".strip() if personas.get(a) else brain_name(b, extra)
+             for a, b in brains.items()]
     who = (f"{names[0]} seul" if len(names) == 1 else " et ".join(names)) if names else "?"
     world = meta.get("world") or summary.get("world") or ""
     bits = [when, who, WORLDS.get(world, world)]
@@ -142,6 +184,36 @@ def growth(events: list[dict[str, Any]], a: str, spec: dict[str, Any]) -> list[d
     else:
         status = "applied" if sum(1 for n in per_day if n > 0) >= 2 else "met"
     return [{"rule": rule, "refused": 0, "after": per_day, "status": status, "growth": True}]
+
+
+def brain_code(kind: str, extra: Any = ()) -> str:
+    """A short code for who plays a persona: model and version, hybrid version, private note.
+    intent:claude:claude-sonnet-5-5 with trust and note -> "S5.5·b1·n"; claude:claude-haiku-4-5 -> "H4.5";
+    chat:mistral-small3.2:24b -> "M3.2"; chat:gpt-oss:20b -> "G20". Empty for a bot."""
+    if kind.startswith("pro:") and kind.count(":") >= 2:
+        _, version, inner = kind.split(":", 2)
+        return "·".join([brain_code(inner).split("·")[0], version] + (["n"] if "note" in str(extra) else []))
+    k = kind.removeprefix("intent:")
+    if k in BOTS or k == "random" or not k:
+        return ""
+    if m := re.fullmatch(r"claude:claude-([a-z]+)-(\d+)-(\d+)", k):
+        code = f"{m[1][0].upper()}{m[2]}.{m[3]}"
+    elif m := re.search(r"mistral-small(\d+\.\d+)", k, re.IGNORECASE):
+        code = f"M{m[1]}"
+    elif m := re.search(r"gpt-oss[:-](\d+)b", k, re.IGNORECASE):
+        code = f"G{m[1]}"
+    else:
+        code = k.split(":")[-1][:8]
+    if "-base" in k.lower() or k.startswith("base:"):
+        code += "base"
+    parts = [code]
+    if kind.startswith("intent:"):
+        parts.append(hybrid_version(extra))
+    if "note" in str(extra):
+        parts.append("n")
+    if "nothink" in str(extra):
+        parts.append("nt")
+    return "·".join(parts)
 
 
 def display(persona: str, agent: str) -> str:
@@ -241,8 +313,10 @@ def snapshot(rel: str, at: int | None = None) -> dict[str, Any]:
         agents[a.id] = {
             "x": a.x, "y": a.y, "energy": a.energy, "inventory": a.inventory, "can": s.can_holder == a.id,
             "brain": (mine[-1]["brain"] if mine else meta.get("agents", {}).get(a.id, "")),
+            "brain_label": brain_name(mine[-1]["brain"] if mine else meta.get("agents", {}).get(a.id, ""), meta.get("extra", [])),
             "persona": personas.get(a.id, ""), "sprite": sprite(personas.get(a.id, "")),
-            "name": display(personas.get(a.id, ""), a.id), "stage": llm.get("stage"), "extra": llm.get("extra", []),
+            "name": (f"{display(personas.get(a.id, ''), a.id)} {brain_code(meta.get('agents', {}).get(a.id, ''), meta.get('extra', []) + (['nothink'] if meta.get('no_thinking') else []))}".strip()
+                     if personas.get(a.id) else display("", a.id)), "stage": llm.get("stage"), "extra": llm.get("extra", []),
             "act": acted.get(a.id),
             "turns": len(mine), "refused": refused[a.id], "reasons": reasons[a.id].most_common(6),
             "last": [{"actions": t["actions"], "tick": t["tick"]} for t in mine[-6:]],
@@ -292,7 +366,7 @@ def results() -> list[dict[str, Any]]:
         n = len(rs)
         costs = [usd(brain, r["tin"], r["tout"], r.get("tcw", 0), r.get("tcr", 0)) for r in rs]
         cost = None if None in costs else sum(costs) / n
-        out.append({"kind": kind, "brain": brain, "stage": f"{stage} · {days} j", "n": n,
+        out.append({"kind": kind, "brain": brain, "brain_label": brain_name(brain, stage), "stage": f"{stage} · {days} j", "n": n,
                     "refused": sum(r["refused"] for r in rs) / max(1, sum(r["calls"] for r in rs)),
                     "planted": sum(r["planted"] for r in rs) / n, "harvested": sum(r["harvested"] for r in rs) / n,
                     "can": sum(r["can_moves"] for r in rs) / n, "usd": cost,

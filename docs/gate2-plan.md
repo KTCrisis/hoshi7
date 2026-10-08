@@ -232,3 +232,17 @@ the same evening under amendment 1, and is reported under it.
 
   Runner option `--stop-futile 2` (`hoshi7 run`, `tools/ladder.py`); the run's summary and its line in
   `results.jsonl` carry `stopped`.
+
+## Amendment 4 (2026-10-08, 21:45): Claude Haiku 5.5, a quick comparison
+
+Claude Haiku 5.5 (`claude-haiku-5-5`) costs a tenth of Haiku 4.5 ($0.10 / $0.50 per million tokens),
+rejects any non-default temperature (as Sonnet 5.5 does), and thinks by default (adaptive, effort
+`medium`). It is played at its defaults, so its conditions match Sonnet 5.5's (thinking on, default
+temperature), not Haiku 4.5's (no thinking): a difference from Haiku 4.5 is the model and its thinking
+together, not the model alone. Its `max_tokens` is 8000 like Sonnet's, since thinking counts against it.
+
+Arm: hybrid, cell A (water bot in slot a), stage 6 with `present`, `coords` and `note`, no persona,
+4 runs, read against the same cell's Haiku 4.5 (4 runs) and Sonnet 5.5 (2 runs). Exploratory; reported
+with the harvest, the opportunities taken by day, the repeats after a failure and the cost per run.
+Prediction, written before the runs: Haiku 5.5 lands between the two, nearer Sonnet on the
+opportunities taken (thinking lets it read the bot from what it does), confidence low.

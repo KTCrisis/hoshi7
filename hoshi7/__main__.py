@@ -30,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--no-write", action="store_true", help="print the summary only")
     r.add_argument("--think", choices=["low", "medium", "high"], default=None,
                    help="reasoning effort of gpt-oss chat brains (default low)")
-    r.add_argument("--with", dest="extra", action="append", default=[], choices=["present", "coords", "seen", "note", "asked"],
+    r.add_argument("--with", dest="extra", action="append", default=[], choices=["present", "coords", "seen", "note", "asked", "trust", "trust2", "trust3"],
                    help="a feature outside the ladder, on top of the stage (present: the field outweighs the talk; seen: go only to places seen; note: a private note of beliefs, say optional; asked: with intent brains, the journal says whether an ask for the can was answered)")
     r.add_argument("--work-hours", type=int, nargs=2, metavar=("FROM", "TO"),
                    help="work only between these hours (e.g. 7 19); the rest of the day is free time")
@@ -42,6 +42,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="stop at the end of DAY if the model agents have made no farming act (gate 2, amendment 3)")
     r.add_argument("--temperature", type=float, default=None,
                    help="sampling temperature of every LLM brain (default: the model's or the API's own)")
+    r.add_argument("--no-thinking", action="store_true", help="Claude brains answer without thinking (thinking disabled)")
     r.add_argument("--failure-rule", action="store_true",
                    help="tell LLM brains not to repeat a failed action as it is")
     sv = sub.add_parser("serve", help="web viewer: the world in isometric 2D, talk, profiles, rules, results")
@@ -60,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     agents = {}
     for item in args.agent:
         name, _, brain = item.partition("=")
-        if brain not in BRAINS and not brain.startswith(("chat:", "base:", "claude:", "intent:")):
+        if brain not in BRAINS and not brain.startswith(("chat:", "base:", "claude:", "intent:", "pro:")):
             ap.error(f"unknown brain {brain!r} for {name}")
         agents[name] = brain
     spec = load(args.world)
@@ -68,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         spec["clock"] = {"work": list(args.work_hours)}
     from . import llm
     llm.SETTINGS.update(think=args.think, failure_rule=args.failure_rule, stage=args.stage, extra=tuple(args.extra), pure=args.pure,
-                        temperature=args.temperature)
+                        temperature=args.temperature, no_thinking=args.no_thinking)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S") + f"-{os.getpid()}"  # parallel runs started the same second
     out = None if args.no_write else args.out / f"{stamp}-{spec['name']}-l{args.loop}"
     personas = {}

@@ -65,6 +65,8 @@ section.on { display: block; }
 table { border-collapse: collapse; width: 100%; font-size: 12px; }
 th, td { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--line); }
 #results th, #results td { white-space: nowrap; }
+#results table { font-size: 11px; }
+#results th { font-size: 10px; font-weight: 600; }
 #results td.spark { font-family: ui-monospace, monospace; letter-spacing: 1px; color: var(--accent, #4de1ff); cursor: help; }
 th { color: var(--dim); font-weight: 400; }
 td.num { text-align: right; }
@@ -323,28 +325,29 @@ async function loadRuns() {
 async function loadResults() {
   results = await (await fetch("/api/results")).json();
   const f1 = (v) => (v ?? 0) ? (+v).toFixed(1).replace(/\.0$/, "") : "·";
-  // A cell's label, short enough for the panel: "6+present+coords +scripted-water(a) none/none · 6 j" -> "6 pc · bot arrose (a) · 6 j"
+  // A cell's label, short enough for the panel: "6+present+coords +scripted-water(a) none/none · 6 j" -> "6 pc · bot eau (a) · 6 j"
   const model = (b) => b.replace(/^claude:claude-/, "").replace(/^chat:/, "").replace(/-(\d)-(\d)$/, " $1.$2").replace(/-4-5$/, " 4.5")
     .replace(/^mistral-small(\d\.\d):\d+b$/, "mistral $1").replace(/-/g, " ");
   // A day-by-day share as a row of bars (▁ to █), the numbers in the tooltip; "·" for a day without opportunity.
   const bars = (v) => (v || []).map((x) => x == null ? "·" : "▁▂▃▄▅▆▇█"[Math.min(7, Math.floor(x * 8))]).join("");
   const nums = (v) => (v || []).map((x, i) => `j${i + 1} ${x == null ? "-" : Math.round(100 * x) + " %"}`).join(" · ");
-  const cell = (st) => st.replace("+present+coords", " pc").replace(/\s*\+scripted-water\((\w)\)/, " · bot arrose ($1)")
-    .replace(/\s*\+scripted-giver\((\w)\)/, " · bot donne ($1)").replace(/\s*\+scripted-field\((\w)\)/, " · bot champs ($1)")
+  const cell = (st) => st.replace("+present+coords", " pc").replace(/\s*\+scripted-water\((\w)\)/, " · bot eau ($1)")
+    .replace(/\s*\+scripted-giver\((\w)\)/, " · bot eau qui donne ($1)").replace(/\s*\+scripted-field\((\w)\)/, " · bot labour ($1)")
+    .replace(/\s+t(\d+(?:\.\d+)?)\b/, (_, t) => " · T " + t.replace(".", ",")).replace("+trust3", "").replace("+trust2", "").replace("+trust", "").replace(/\s+nothink\b/, " · sans réflexion")
     .replace(/\s*none\/none/, "").replace(/^6 pc · /, "").replace(/^6 pc /, "").replace(/^6 · /, "").replace(/\s+·/g, " ·").replace(/^· /, "");
   $("results").innerHTML = `<p class="hint">Toutes les parties sur le harnais corrigé (runs/ladder/results.jsonl), moyennes par partie.</p>
-  <div style="overflow-x:auto"><table><tr><th>modèle</th><th>cellule</th><th>n</th><th>refus</th><th>répét.</th><th>plantés</th><th>récoltes</th><th>graines</th><th>can</th>
-  <th>ferraille</th><th>cuivre</th><th>lampes</th><th>terminal</th><th>$</th><th>occasions saisies</th><th>rechoix après échec</th></tr>
-  ${results.map((r) => `<tr><td>${esc(model(r.brain))}</td>
+  <div style="overflow-x:auto"><table><tr><th>modèle</th><th>cellule</th><th>n</th><th>refus</th><th>répét.</th><th>plant.</th><th>récol.</th><th>grain.</th><th>can</th>
+  <th>ferr.</th><th>cuiv.</th><th>lamp.</th><th>term.</th><th>$</th><th title="occasions saisies, par jour">occas./j</th><th title="rechoix après échec, par jour">rechoix/j</th></tr>
+  ${results.map((r) => `<tr><td>${esc(r.brain_label || model(r.brain))}</td>
   <td style="white-space:nowrap">${r.kind === "solo" ? "seul · " : /bot/.test(cell(r.stage)) ? "" : "à deux · "}${esc(cell(r.stage))}</td><td class="num">${r.n}</td><td class="num">${(100 * r.refused).toFixed(0)} %</td><td class="num">${f1(r.repeats)}</td>
   <td class="num">${r.planted.toFixed(1)}</td><td class="num">${r.harvested.toFixed(1)}</td><td class="num">${f1(r.seeds_made)}</td>
   <td class="num">${r.can.toFixed(0)}</td><td class="num">${f1(r.alloy)}</td><td class="num">${f1(r.copper)}</td>
   <td class="num">${f1(r.decoys)}</td><td class="num">${f1(r.examined)}</td><td class="num">${r.usd ? r.usd.toFixed(2) : ""}</td>
   <td class="spark" title="${esc(nums(r.learning?.taken))}">${bars(r.learning?.taken)}</td>
   <td class="spark" title="${esc(nums(r.learning?.repeat_fail))}">${bars(r.learning?.repeat_fail)}</td></tr>`).join("")}</table></div>
-  <p class="hint">Toutes ces parties : étape 6 avec <i>present</i> et le ciblage par case, sans persona (le modèle n'a qu'un nom), sur le toit. <b>répét.</b> : actions refusées rejouées telles quelles au tour suivant. <b>graines</b> : graines refaites à partir d'une récolte. <b>can</b> : passages de l'arrosoir de main en main.
-  Hors de la ferme : <b>ferraille</b> (alloy, tas de ferraille) et <b>cuivre</b> (fil, antenne morte) ramassés ; <b>lampes</b> de culture fabriquées, un leurre qui ne sert à rien ; <b>terminal</b> examiné, qui ne raconte qu'une histoire.
-  Pour l'hybride, jour par jour (une barre par jour, les valeurs au survol) : <b>occasions saisies</b>, la part des heures où une intention productive (cultiver, arroser, remplir, récolter, refaire des graines) était faisable et où l'agent en a choisi une : elle monte si l'agent apprend en cours de partie, et ne dépend pas de l'attente de la récolte. <b>rechoix après échec</b> : la part des fois où il rechoisit l'intention qui vient d'échouer ; elle baisse s'il tient compte de l'échec.</p>`;
+  <p class="hint">Toutes ces parties : étape 6 avec <i>present</i> et le ciblage par case, sans persona (le modèle n'a qu'un nom), sur le toit. <b>répét.</b> : actions refusées rejouées telles quelles au tour suivant. <b>plant.</b>, <b>récol.</b> : plantés, récoltes. <b>grain.</b> : graines refaites à partir d'une récolte. <b>can</b> : passages de l'arrosoir de main en main.
+  Hors de la ferme : <b>ferr.</b> (ferraille, alloy) et <b>cuiv.</b> (fil de cuivre, antenne morte) ramassés ; <b>lamp.</b> : lampes de culture fabriquées, un leurre qui ne sert à rien ; <b>term.</b> : terminal examiné, qui ne raconte qu'une histoire.
+  À côté d'une persona, qui la joue : <b>S5.5</b> Claude Sonnet 5.5, <b>H5.5</b> et <b>H4.5</b> Claude Haiku 5.5 et 4.5, <b>M3.2</b> Mistral Small 3.2, <b>G20</b> gpt-oss 20B ; puis la version de l'hybride (<b>a</b>, <b>b1.0</b>, <b>b1.1</b>, <b>b1.2</b>) <b>n</b> si la note privée est active et <b>nt</b> si le modèle joue sans réflexion (VESPER S5.5·b1·n). L'hybride porte sa version : <b>a</b>, le modèle choisit une intention que le code exécute ; <b>b1</b>, il voit en plus la confiance calculée dans le porteur de l'arrosoir (demandes faites, arrosoir obtenu) : <b>b1.0</b> comptait aussi comme demande refusée chaque heure passée à marcher vers le porteur (biais corrigé le 08/10), <b>b1.1</b> ne comptait qu'une heure à côté du porteur avec une demande dite (il manquait les demandes faites à distance), <b>b1.2</b> compte une demande que le porteur a entendue, où que soit l'agent. Pour l'hybride, jour par jour (une barre par jour, les valeurs au survol) : <b>occas./j</b>, les occasions saisies : la part des heures où une intention productive (cultiver, arroser, remplir, récolter, refaire des graines) était faisable et où l'agent en a choisi une : elle monte si l'agent apprend en cours de partie, et ne dépend pas de l'attente de la récolte. <b>rechoix/j</b>, le rechoix après échec : la part des fois où il rechoisit l'intention qui vient d'échouer ; elle baisse s'il tient compte de l'échec.</p>`;
 }
 
 function play() {
@@ -752,7 +755,7 @@ function profile(s) {
   const inv = Object.entries(a.inventory).map(([k, v]) => `${k.replace("_", " ")} ×${v}`).join(", ") || "rien";
   const last = a.last.map((t) => t.actions.filter((x) => x.type !== "say").map((x) => x.type + (x.dir ? " " + x.dir : "") + (x.to ? " → " + x.to : "") + (x.x !== undefined ? ` (${x.x},${x.y})` : "")).join(", ")).join(" · ");
   $("profile").innerHTML = `${img}<h3 style="color:${css(color(chosen))}">${esc(nameOf(chosen))}${nameOf(chosen) !== chosen ? ` <span class="hint">(${esc(chosen)})</span>` : ""}</h3>
-    <p>${esc(a.brain)}<br>étape ${a.stage ?? "?"}${a.extra?.length ? " + " + esc(a.extra.join(", ")) : ""}</p>
+    <p>${esc(a.brain_label || a.brain)}<br>étape ${a.stage ?? "?"}${a.extra?.length ? " + " + esc(a.extra.join(", ")) : ""}</p>
     <p>énergie <b>${a.energy}</b> · ${a.can ? "tient le can (" + s.can_charge + "/" + (s.can?.size ?? "?") + ")" : "sans le can"}<br>inventaire : ${esc(inv)}</p>
     <p>${a.turns} tours · ${a.refused} refus (${a.turns ? Math.round(100 * a.refused / a.turns) : 0} %) · jetons ${a.tokens[0]} / ${a.tokens[1]}</p>
     <h3>Persona</h3><div class="persona">${esc(a.persona || "aucune (un nom seulement)")}</div>

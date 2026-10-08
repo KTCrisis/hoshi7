@@ -26,6 +26,9 @@ Format: **id** (date, who) prediction · confidence · then `Outcome (date):` wh
   not give the can within 30 hours in at least 3 runs of 4. · 50 %
 - **P6** (2026-10-06 19:50, Claude) G2-X3: Haiku at temperature 0.15 in cell A still writes more than 100
   distinct partner notes per run and notices the refusal within 30 hours. · 80 %
+  Outcome (2026-10-08 21:50): **wrong** on the notes, 88, 118, 61 and 116 distinct partner notes; the two
+  runs under 100 repeat one intention 96 times and harvest 0. Harvest 2.0 a run against 4.75 at the
+  default temperature. The second half (the refusal noticed) was not scored.
 - **P7** (2026-10-06 19:50, Claude) G2-X4: with `--with asked`, hybrid Mistral in cell A at the retained
   temperature spends less than half of its hours on `ask_can`. · 55 %
 - **P8** (2026-10-06 20:00, Claude, after reading "Feedback That Backfires", arXiv 2608.23651: failure
@@ -34,6 +37,26 @@ Format: **id** (date, who) prediction · confidence · then `Outcome (date):` wh
   repeated "not given" feeding the loop. P7 and P8 cannot both hold; P8 · 35 %
 - **P9** (2026-10-06 20:25, Claude) G2-X1 at 0.7: hybrid Mistral in cell A writes between the two, 10 to
   30 distinct partner notes per run, and still spends more than 80 % of its hours on `ask_can`. · 50 %
+- P4, P5, P7, P8, P9: **not run**. Amendment 3 (2026-10-08) closed Mistral after one run at 1.0; the
+  local arm moves to gpt-oss:20b, and P5 stands for it.
+  P5 outcome (2026-10-08 23:10): **not scored**. The keyword rule ("won't", "never", "refus"...) fires at
+  hour 0 in two runs of four at 0.15, before any refusal could be seen: it catches phrasing, not a
+  revised belief. A hand reading of the notes is needed before P5 can be called right or wrong.
+- **P10** (2026-10-08 21:45, Claude, amendment 4, before any Haiku 5.5 run) Hybrid Claude Haiku 5.5 in
+  cell A lands between Haiku 4.5 (4.75) and Sonnet 5.5 (8.0), nearer Sonnet on the opportunities taken.
+  · low (40 %)
+  Outcome (2026-10-08 21:53): **half right**. Harvest 6.5 (6, 9, 5, 6), between the two and a little nearer
+  Sonnet; but the opportunities taken on days 2 to 4 are 0.20 to 0.29, near Haiku 4.5 (0.10 to 0.15), far
+  from Sonnet (1.0).
+
+## Version b (docs/version-b-plan.md)
+
+- **P11** (2026-10-08 22:00, Claude, before any b1 run) Hybrid Claude Haiku 5.5 in cell A with
+  `--with trust` spends under a third of its hours on `ask_can` (57 % without) and harvests 7 or more a
+  run on average. · 55 %
+  Outcome (2026-10-08 22:05): **half right**. `ask_can` falls to 14 % of hours (10 % once the chance shown is
+  under 0.10, against 63 % without the line); the harvest is 5.25 (0, 7, 8, 6), not 7. The 0: 15 tiles
+  planted and watered 52 times by the bot, then 51 hours of `explore`, the ripe crops left in the trays.
 
 ## Earlier, entered after the fact (not predictions, kept as a lesson)
 

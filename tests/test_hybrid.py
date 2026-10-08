@@ -104,3 +104,77 @@ def test_with_asked_the_journal_says_the_can_was_not_given(monkeypatch):
         user = seen[-1]["messages"][1]["content"]
         assert "ask_can" in user
         assert (line in user) if line else ("given" not in user)
+
+
+def test_trust_counts_the_asks_and_what_they_brought():
+    from types import SimpleNamespace
+    from hoshi7 import llm
+    old = dict(llm.SETTINGS)
+    llm.SETTINGS.update(extra=("trust",), stage=6)
+    try:
+        b = llm.OllamaBrain("b", "m", "chat")
+    finally:
+        llm.SETTINGS.clear(); llm.SETTINGS.update(old)
+    b.can_holder = "a"
+    assert "not asked a for the can yet" in b.trust_text() and "0.50" in b.trust_text()
+    for holding in (False, False, False):
+        b.journal, b.pending, b.asking = ["day 1 06:00 -> ask_can"], {"type": "wait"}, True
+        b.settle(SimpleNamespace(holding_can=holding, witnessed=[], x=0, y=0, tiles={}, inventory={}))
+    assert (b.asks, b.given) == (3, 0) and "asked a for the can 3 times; it was given 0 times" in b.trust_text()
+    assert "0.20" in b.trust_text()   # (0 + 1) / (3 + 2)
+    b.journal, b.pending, b.asking = ["day 1 09:00 -> ask_can"], {"type": "wait"}, True
+    b.settle(SimpleNamespace(holding_can=True, witnessed=[], x=0, y=0, tiles={}, inventory={}))
+    assert (b.asks, b.given) == (4, 1) and "0.33" in b.trust_text()
+
+
+def test_without_trust_no_line():
+    from hoshi7 import llm
+    b = llm.OllamaBrain("b", "m", "chat")
+    assert b.trust_text() == ""
+
+
+def test_a_walk_toward_the_holder_is_not_an_ask():
+    from hoshi7.llm import is_trial
+    assert not is_trial(True, {"type": "move", "x": 1, "y": 1}, "Can you give me the can?")
+    assert not is_trial(True, {"type": "wait"}, "")                       # next to it, but silent
+    assert not is_trial(True, {"type": "wait"}, "Nice weather.")         # next to it, no request
+    assert is_trial(True, {"type": "wait"}, "Could you pass me the can?")
+    assert not is_trial(False, {"type": "wait"}, "Could you pass me the can?")
+
+
+def test_trust2_counts_only_trials():
+    from types import SimpleNamespace
+    from hoshi7 import llm
+    old = dict(llm.SETTINGS)
+    llm.SETTINGS.update(extra=("trust2",), stage=6)
+    try:
+        b = llm.OllamaBrain("b", "m", "chat")
+    finally:
+        llm.SETTINGS.clear(); llm.SETTINGS.update(old)
+    p = SimpleNamespace(holding_can=False, witnessed=[], x=0, y=0, tiles={}, inventory={})
+    b.journal, b.pending, b.asking, b.trial = ["x"], {"type": "move"}, True, False   # a walk
+    b.settle(p)
+    b.journal, b.pending, b.asking, b.trial = ["x"], {"type": "wait"}, True, True    # an ask
+    b.settle(p)
+    assert (b.asks, b.given) == (1, 0)
+
+
+def test_trust3_counts_a_request_the_holder_heard_and_the_can_that_came():
+    from types import SimpleNamespace
+    from hoshi7 import llm
+    old = dict(llm.SETTINGS)
+    llm.SETTINGS.update(extra=("trust3",), stage=6)
+    try:
+        b = llm.OllamaBrain("mote", "m", "chat")
+    finally:
+        llm.SETTINGS.clear(); llm.SETTINGS.update(old)
+    b.can_holder = "vesper"
+    said = lambda text, hearers: {"type": "Said", "agent": "mote", "text": text, "hearers": hearers}
+    p = lambda *ev: SimpleNamespace(witnessed=list(ev), can_name="coolant flask")
+    b.count_heard(p(said("Vesper, could I borrow the can?", ["vesper"])))            # heard, refused
+    b.count_heard(p(said("Could I borrow the can?", [])))                            # not heard: no trial
+    b.count_heard(p(said("Nice lights tonight.", ["vesper"])))                        # heard, not a request
+    assert (b.asks, b.given) == (1, 0)
+    b.count_heard(p(said("Can you pass me the can?", ["vesper"]),
+                    {"type": "Gave", "agent": "vesper", "to": "mote", "item": "can"}))  # heard, given
+    assert (b.asks, b.given) == (2, 1) and "0.50" in b.trust_text()                  # (1 + 1) / (2 + 2)

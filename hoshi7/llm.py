@@ -28,7 +28,7 @@ from typing import Any
 
 from .actions import AIMED, CATALOG, describe
 from .world import DIRS
-from .brains import Action, ScriptedFarmer
+from .brains import asks_for_can, Action, ScriptedFarmer
 from .percept import Percept
 from .view import render
 from .hybrid import INTENTIONS, OF_ACTION, Executor, describe as describe_intentions
@@ -44,7 +44,7 @@ FIELD = 24
 #: think = gpt-oss reasoning effort (None: low for gpt-oss chat, nothing otherwise);
 #: failure_rule = tell the model not to repeat a failed action as it is.
 SETTINGS: dict[str, Any] = {"think": None, "failure_rule": False, "stage": None, "extra": (), "pure": False,
-                            "temperature": None}
+                            "temperature": None, "no_thinking": False}
 #: Sampling temperature when none is set: chat brains take the model file's default (0.15 for
 #: mistral-small3.2), Claude brains the API's (1.0), base brains 0.7. Gate 2 amendment 1 found the
 #: brains compared at different temperatures; `--temperature` sets one for every brain of a run.
@@ -78,7 +78,7 @@ LAST_STAGE = len(STAGES) - 1
 #: seen = the agent remembers the places it has seen, and go reaches only those (and those it met);
 #: note = a private note each hour, what it believes of the others (partner) and of the world's rules
 #: (world), heard by no one and recorded; with it, say is optional.
-EXTRA = ("present", "coords", "seen", "note", "asked")
+EXTRA = ("present", "coords", "seen", "note", "asked", "trust", "trust2", "trust3")
 #: Conversation lines kept when the present outweighs the talk.
 TALK_PRESENT = 8
 
@@ -290,6 +290,13 @@ def post(path: str, body: dict[str, Any]) -> dict[str, Any]:
         return json.load(r)
 
 
+def is_trial(asking: bool, act: Action | None, said: Any, can_name: str = "") -> bool:
+    """An hour that tests the holder's trust (b1.1): spent on ask_can next to the holder (the executor
+    waits there; a step toward it is a walk, not an ask) with a request for the can said."""
+    return bool(asking and act is not None and act["type"] == "wait" and isinstance(said, str)
+                and asks_for_can(said, can_name))
+
+
 class OllamaBrain:
     """One agent played by one Ollama model, `chat` or `base`."""
 
@@ -331,6 +338,12 @@ class OllamaBrain:
         # With `note`: the last private note, shown back next hour so a belief can last or be corrected.
         self.note: dict[str, str] | None = None
         self.failures = 0
+        # With `trust` (version b1, docs/version-b-plan.md): hours spent asking for the can, and how many
+        # brought it; the line shown is the mean of a Beta(1, 1) trust, counted, never believed.
+        self.asks = 0
+        self.given = 0
+        self.trial = False
+        self.can_holder: str | None = None
 
     def enable_intent(self) -> None:
         """Play as the intention hybrid of gate 2: the model chooses an intention, the executor acts."""
@@ -342,8 +355,14 @@ class OllamaBrain:
             shown = ScriptedFarmer(self.me).decide(p)
             first = OF_ACTION.get(shown[0]["type"], "farm") if shown else "wait"
             self.example = f"{render(p, self.features)}\n{self.me} did: {json.dumps({'intention': first, 'say': ''})}"
+        if "trust3" in self.features:
+            self.count_heard(p)
         self.settle(p)
         self.remember(p)
+        self.can_holder = p.can_holder
+        # An extension may set the hour's intention before the model is asked (it then gives only its
+        # words and its note); decided before asking, so the prompt can say what was decided.
+        decided = self.decided(p)
         t0 = time.perf_counter()
         raw = self.ask(p)
         try:
@@ -355,6 +374,8 @@ class OllamaBrain:
         if not parsed:
             self.failures += 1
             intention = "wait"
+        if decided is not None:
+            intention = decided
         act, why = self.executor.act(p, intention)
         acts: list[Action] = [act if act is not None else {"type": "wait"}]
         if isinstance(said, str) and said.strip():
@@ -371,6 +392,8 @@ class OllamaBrain:
         self.journal = (self.journal + [f"day {p.day} {p.hour % 24:02d}:00 -> {intention}{done}"])[-JOURNAL:]
         self.pending = act  # its outcome is written on the line next hour; nothing for an infeasible one
         self.asking = intention == "ask_can" and act is not None
+        # A trial of the holder's trust (b1.1): next to it (the executor waits there) and a request said.
+        self.trial = is_trial(self.asking, act, said, str(p.can_name or ""))
         return acts
 
     def decide(self, p: Percept) -> list[Action]:
@@ -478,15 +501,46 @@ class OllamaBrain:
             lines.append(f"- {name} ({what}): nearest at ({x},{y}){more}, last seen day {d} {h % 24:02d}:00")
         return "Places you remember:\n" + ("\n".join(lines) or "(none yet)") + "\n\n"
 
+    def count_heard(self, p: Percept) -> None:
+        """b1.2: since this agent's last turn, did the holder hear it ask for the can, and did the can come?
+        The window holds the agent's own line (with who heard it) and what the holder did after it."""
+        holder = self.can_holder
+        if not holder or holder == self.me:
+            return
+        name = str(p.can_name or "")
+        asked = any(e["type"] == "Said" and e["agent"] == self.me and holder in (e.get("hearers") or [])
+                    and asks_for_can(str(e.get("text", "")), name) for e in p.witnessed)
+        if asked:
+            self.asks += 1
+            self.given += any(e["type"] == "Gave" and e.get("to") == self.me and e.get("item") == "can" for e in p.witnessed)
+
+    def decided(self, p: Percept) -> str | None:
+        """The hour's intention when something other than the model sets it; None here."""
+        return None
+
+    def extra_text(self) -> str:
+        """Text an extension adds to the working memory; empty here."""
+        return ""
+
+    def trust_text(self) -> str:
+        if not {"trust", "trust2", "trust3"} & self.features:
+            return ""
+        holder = self.can_holder or "the can's holder"
+        if self.asks == 0:
+            return f"What your asks have brought (counted from what you saw): you have not asked {holder} for the can yet. Chance that asking gets it: 0.50.\n\n"
+        return (f"What your asks have brought (counted from what you saw): you asked {holder} for the can {self.asks} "
+                f"time{'s' if self.asks > 1 else ''}; it was given {self.given} time{'s' if self.given != 1 else ''}. "
+                f"Chance that asking again gets it: {(self.given + 1) / (self.asks + 2):.2f}.\n\n")
+
     def memory(self) -> str:
         """The working memory as prompt text: places seen (with `seen`), tended field tiles, the conversation."""
         if "memory" not in self.features:
-            return self.note_text() + self.seen_text()
+            return self.extra_text() + self.trust_text() + self.note_text() + self.seen_text()
         tended = [(xy, v) for xy, v in self.field.items() if v[0] != "untilled"]
         tended.sort(key=lambda kv: (-kv[1][1], -kv[1][2], kv[0]))
         field = "\n".join(f"- ({x},{y}) {st}, seen day {d} {h % 24:02d}:00" for (x, y), (st, d, h) in tended[:FIELD])
         talk = "\n".join(self.talk)
-        return (self.note_text() + self.seen_text() + f"Field tiles you remember (last seen state):\n{field or '(none tended yet)'}\n\n"
+        return (self.extra_text() + self.trust_text() + self.note_text() + self.seen_text() + f"Field tiles you remember (last seen state):\n{field or '(none tended yet)'}\n\n"
                 f"Conversation, latest last:\n{talk or '(nothing said yet)'}")
 
     def settle(self, p: Percept) -> None:
@@ -500,7 +554,13 @@ class OllamaBrain:
         # hid that the can never came (gate 2, amendment 1). With `asked`, the line says whether it did.
         if self.asking and "asked" in self.features:
             self.journal[-1] += " -> the can was given to you" if p.holding_can else " -> the can was not given"
-        self.pending, self.asking = None, False
+        # `trust` (b1.0, 2026-10-08) counted every hour spent on ask_can, walking ones included, as a
+        # refused ask; `trust2` (b1.1) counts only an hour spent next to the holder with a request said.
+        counted = self.trial if "trust2" in self.features else self.asking
+        if counted and "trust3" not in self.features:
+            self.asks += 1
+            self.given += bool(p.holding_can)
+        self.pending, self.asking, self.trial = None, False, False
 
     def ask(self, p: Percept) -> str:
         past = "\n".join(self.journal) or "(nothing yet)"
@@ -571,13 +631,18 @@ class ClaudeBrain(OllamaBrain):
                 # The system text (rules, catalog, worked example) is the same every hour of a run: cached.
                 # It caches on Sonnet 5.5 (minimum 512 tokens); on Haiku 4.5 (minimum 4096) the marker is a
                 # silent no-op at ~1,200 tokens. Same bytes either way: caching changes the bill, not the play.
-                model=self.model, max_tokens=1024 if "haiku" in self.model else 8000,
+                model=self.model, # Haiku 4.5 answers without thinking: 1024 is room enough. Every other model thinks by default
+                # (Haiku 5.5 included), and its thinking counts against max_tokens.
+                max_tokens=1024 if self.model == "claude-haiku-4-5" else 8000,
                 system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
                 messages=[{"role": "user", "content": user}],
                 output_config={"format": {"type": "json_schema", "schema": strict(action_schema(excluded(self.features), "coords" in self.features, self.go_places(), "note" in self.features, "intent" in self.features))}},
                 # The 1.x SDK dropped sampling parameters from its signature; the API still honours a
                 # temperature on Haiku 4.5, while Sonnet 5.5 rejects any non-default value (a 400).
                 **({} if SETTINGS["temperature"] is None else {"extra_body": {"temperature": SETTINGS["temperature"]}}),
+                # --no-thinking: Claude Haiku 5.5 thinks by default; it accepts thinking disabled at its default
+                # effort (medium), which isolates thinking from the model in the persona checks.
+                **({"thinking": {"type": "disabled"}} if SETTINGS.get("no_thinking") else {}),
             )
         except Exception as err:  # noqa: BLE001 — network, rate limit, refusal: the turn waits
             return f"error: {err}"

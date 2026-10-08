@@ -35,6 +35,12 @@ def brain(kind: str, me: str, persona: str = "") -> Brain:
     """A scripted brain by name, or an Ollama model as `chat:<model>` or `base:<model>`."""
     if kind in BRAINS:
         return BRAINS[kind](me)
+    if kind.startswith("pro:"):  # a brain from an installed extension package, not part of this repository
+        try:
+            import velens_hybrid  # type: ignore[import-not-found]
+        except ImportError:
+            raise ValueError(f"{kind!r} needs an extension that is not installed") from None
+        return velens_hybrid.make(kind, me, persona)
     if kind.startswith("intent:"):  # the intention hybrid of gate 2 (hybrid.py)
         inner = kind.split(":", 1)[1]
         if inner == "random":
@@ -212,7 +218,8 @@ def run(spec: dict[str, Any], agents: dict[str, str], *, loop: int = 1, seed: in
         from .llm import SETTINGS
         meta = {"world": spec["name"], "agents": agents, "personas": personas or {}, "days": days,
                 "stage": SETTINGS.get("stage"), "extra": list(SETTINGS.get("extra") or ()), "pure": SETTINGS.get("pure"),
-                "temperature": SETTINGS.get("temperature"), "stop_futile": stop_futile}
+                "temperature": SETTINGS.get("temperature"), "stop_futile": stop_futile,
+                "no_thinking": bool(SETTINGS.get("no_thinking"))}
         (out / "meta.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     w, turns = play(spec, brains, loop=loop, seed=seed, days=days, on_turn=live, stop_futile=stop_futile)
     if live is not None:

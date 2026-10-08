@@ -224,3 +224,12 @@ def test_the_giver_keeps_a_can_just_handed_back_whatever_the_line_says():
     w.emit(Said(w.state.tick, "hal", "I need you to have the can now.", ["ada"]))
     acts = bot.decide(perceive(w, "ada", start))
     assert not any(a["type"] == "give" for a in acts)
+
+
+def test_an_extension_brain_without_its_package_is_refused_clearly():
+    import sys
+    from hoshi7.run import brain
+    if "velens_hybrid" in sys.modules or __import__("importlib").util.find_spec("velens_hybrid"):
+        return  # installed here: the hook is exercised by the extension's own tests
+    with pytest.raises(ValueError, match="extension that is not installed"):
+        brain("pro:b2:claude:claude-haiku-5-5", "a")
