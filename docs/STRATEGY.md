@@ -227,12 +227,26 @@ step is worth its cost.
 | Engine | event-sourced world, three planes, action catalog, percept, scripted brains, runner, calibration | done |
 | LLM brains | Ollama and Claude brains, harness stages, options (`present`, `coords`, `seen`, `note`, `pure`), viewer | done |
 | Gate 1: capacity | each model with a fixed scripted partner and with itself | done (results.md) |
-| Beliefs | the private note; then a scoring of every note against the bots' policies and the world's rules | note done; scoring next |
-| Gate 2: hybrid | the model picks an intention, code carries it out: does a cheaper model play once execution is taken from it? | next |
-| Gate 3: persona | VESPER, LEDGER-7, MOTE crossed with LLM alone and hybrid (H1, H2); a bot that hands the can over on request makes negotiation measurable | planned |
-| Gate 4: discovery | `--pure` and `--with seen`, on the rooftop and the counter-intuitive world | planned |
-| Governed world | the world as an MCP server behind mesh7; one identity per agent; mem7 memory with scopes | planned |
-| Loops | the same agents across planes and goals; transfer measures against agents without memory; H3 | planned |
+| Gate 2: hybrid | the model picks an intention, code carries it out: does a cheaper model play once execution is taken from it? Closes on G2-H1 to H3 and amendments 1 to 3; G2-X5 (counted facts from mem7) moves to the first loop | next |
+| Gate 3: beliefs | the private note scored against the bots' policies and the world's rules, turn by turn, with a rubric fixed before scoring (beliefs-rubric.md): true, false, unverifiable; when a belief forms; whether a refusal corrects it | planned, before any loop |
+| Gate 4: first loop | two agents, episodes and a journal in mem7 (scoped per agent, no mesh7), a second world after the first; transfer against agents without memory; distortion and divergence measured against the log (H3) | planned |
+| Gate 5: persona | VESPER, LEDGER-7, MOTE crossed with LLM alone and hybrid (H1, H2); a bot that hands the can over on request makes negotiation measurable | planned |
+| Gate 6: discovery | `--pure` and `--with seen`, on the rooftop and the counter-intuitive world | planned |
+| Governed world | the world as an MCP server behind mesh7; one identity per agent; policies as laws of the world | when a loop is worth governing, or a mesh7 demonstration needs it |
+| Loops | the same agents across planes and goals, at length | planned |
+
+**Why this order (2026-10-08).** The long-term question is what carries over
+between worlds (question 5); the earlier order put it behind persona and
+discovery, which it does not depend on. It depends on two things only: a model
+that plays on a correct harness (gate 2), and beliefs that can be scored, since
+a false belief cannot be seen to carry over before it can be seen to be false
+(gate 3). Persona and discovery come after, and use the same scoring. Serving
+the world through mesh7 is infrastructure, not a question: memory continuity
+is tested with mem7 alone.
+
+**A ceiling to lift before gates 4 to 6.** Six days allow one crop cycle, so
+the harvest saturates (amendment 2 of gate 2). Later gates need longer runs or
+another outcome measure, chosen before their runs.
 
 A human can play as well as watch: a human is one more identity, and a
 `human` brain one more brain. Nothing in the engine may assume an LLM behind

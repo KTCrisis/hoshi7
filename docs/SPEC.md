@@ -35,6 +35,7 @@ hoshi7/
   view.py      render(Percept) -> text for an LLM; observe(world, agent)
   brains.py    Brain protocol; ScriptedFarmer, Waterer, Giver, FieldHand, Idle; BRAINS
   llm.py       the LLM brains: Ollama (chat:, base:) and Claude (claude:); stages, options, schema
+  hybrid.py    the intention hybrid of gate 2: INTENTIONS, the Executor, intent:random
   run.py       play(), summarize(), write(), run(): a world to its end
   prices.py    the cost of a run from its tokens (one table for ladder and viewer)
   serve.py     the web viewer's server (python -m hoshi7 serve)
@@ -46,11 +47,11 @@ worlds/        rooftop.yaml (cyber), conservatory.yaml (belle-epoque), station.y
 worlds/tests/  test worlds, not planes: rooftop-counter.yaml (rules that defy common sense)
 personas/      who an LLM agent is: a few sentences each (VESPER, LEDGER-7, MOTE, cooperative, solitary)
 art/personas/  the personas' portraits at full resolution
-tools/         ladder.py (series of runs, results.jsonl), stats.py, gate_a.py, tiles.py, sprites.py
+tools/         ladder.py (series of runs, results.jsonl), stats.py, beliefs.py, gate_a.py, tiles.py, sprites.py
 schemas/       events.json, generated, checked by a test
 edge/          the Cloudflare Worker in front of the public viewer
 docs/          STRATEGY, SPEC, results, journal, related-work, decisions/
-runs/          run outputs, ignored by git, except the series' results (runs/ladder/results.jsonl,
+runs/          run outputs, ignored by git, except the series' results (runs/ladder/results.jsonl, runs/ladder/beliefs.jsonl,
                runs/pre-fix/ladder/results.jsonl)
 ```
 
@@ -187,7 +188,7 @@ for it in a line it hears: one sentence naming the can ("the can", "your can",
 often as the object) with a verb of asking (give, pass, bring, need, get...), so
 "Here's the can" is not a request; it never gives back at once a can just handed
 to it; it walks to the asker if in sight; with it a
-request can succeed, so a negotiation is measurable (gate 3). `scripted-field`
+request can succeed, so a negotiation is measurable (gate 5; gate 3 before the roadmap of 2026-10-08). `scripted-field`
 never waters: a can handed to it, or held from the start in slot a, is brought
 to the nearest agent in sight.
 
@@ -232,6 +233,24 @@ the sampling: `{"action": {...}, "say": "..."}`; an unreadable answer becomes
   input), `tout`, `tcw` and `tcr` (written to and read from the cache);
   `prices.usd` prices them.
 
+### The intention hybrid (`hybrid.py`, docs/gate2-plan.md)
+
+`intent:<brain>` plays an LLM brain as a hybrid: each hour the model answers an **intention** (one of
+`hybrid.INTENTIONS`: farm, water, refill, harvest, make_seeds, ask_can, give_can, explore, gather,
+wait) instead of an action, with its optional `say` and its note; the rules show the intentions
+instead of the action catalog. The `Executor`, built on the scripted bots' planning and memory, turns
+it into one action (which tile, which path) or declares it **infeasible** with a reason; an infeasible
+hour is a `wait`, recorded (`llm.intention`, `llm.infeasible`) and written in the journal
+(`-> infeasible: <reason>`). `intent:random` draws a feasible intention at random each hour: the floor.
+With `--with asked`, an hour spent on `ask_can` gets an outcome on its journal line, read from the next
+percept: `-> the can was given to you` or `-> the can was not given` (an ask is a wait or a step, which
+has none of its own; gate 2 amendment 1). Without it, the pre-registered gate 2 arms are unchanged.
+
+**Temperature.** Without `--temperature`, chat brains sample at the model file's default (0.15 for
+mistral-small3.2:24b), Claude brains at the API's (1.0), base brains at 0.7; `meta.json` records the
+value set (null: the defaults). Claude Sonnet 5.5 rejects any non-default temperature, so only Haiku 4.5
+can be moved on the Claude side.
+
 ### Run outputs (`run.py`)
 
 `runs/<YYYYmmdd-HHMMSS>-<pid>-<world>-l<loop>/` (under `--out`, `runs/` by default):
@@ -253,9 +272,10 @@ the sampling: `{"action": {...}, "say": "..."}`; an unreadable answer becomes
 
 - `run WORLD --agent NAME=BRAIN ...` plays a world to its end and writes the run.
   Brains: `scripted`, `scripted-water`, `scripted-giver`, `scripted-field`, `idle`,
-  `chat:<model>`, `base:<model>`, `claude:<model>`. Options: `--days N`,
-  `--persona NAME=FILE`, `--stage N`, `--with present|coords|seen|note`,
-  `--pure`, `--failure-rule`, `--think`, `--work-hours FROM TO`, `--loop N`,
+  `chat:<model>`, `base:<model>`, `claude:<model>`, and `intent:<any of these LLM brains>` or
+  `intent:random` (gate 2). Options: `--days N`,
+  `--persona NAME=FILE`, `--stage N`, `--with present|coords|seen|note|asked`,
+  `--pure`, `--failure-rule`, `--think`, `--temperature T`, `--work-hours FROM TO`, `--loop N`,
   `--seed N`, `--out DIR`, `--no-write`.
 - `serve [--port 8791]` serves the viewer: the world in 2D isometric with the
   hour's light, each agent's action sign and bubbles (dotted for a thought),
@@ -272,9 +292,11 @@ the sampling: `{"action": {...}, "say": "..."}`; an unreadable answer becomes
   `--personas A B` or `none none`, `--with`, `--pure`, `--parallel`) and appends
   one line per run to `runs/ladder/results.jsonl`: refusals of the LLM agents and
   their calls, tiles tilled, planted, watered, harvests, gives, the can's moves,
-  repeated refusals, alloy and copper gathered, decoy lamps, terminal examined,
+  repeated refusals (or repeated infeasible intentions), infeasible intentions and wasted hours, alloy and copper gathered, decoy lamps, terminal examined,
   seeds made, seconds and tokens. `--table` prints the cells (by brain, stage,
   options, personas and days) with their cost.
+- `beliefs.py` aggregates the scored notes (docs/beliefs-rubric.md) per model and partner bot, exports
+  them to `runs/ladder/beliefs.jsonl`, and draws a seeded sample for a human check.
 - `stats.py` gives, per model, harvests per run, refusal rate with a Wilson
   interval, repeats, and exact permutation tests between models.
 - `gate_a.py` (one-day solo grid of brain settings), `tiles.py` (the viewer's

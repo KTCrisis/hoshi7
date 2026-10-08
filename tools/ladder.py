@@ -36,19 +36,23 @@ def water_by_day(ev: list[dict]) -> list[int]:
 
 
 def loops(run_dir: Path, ev: list[dict]) -> int:
-    """Turns where an LLM agent played again, as it was, the action refused on its previous turn."""
+    """Hours wasted again as the hour before: an LLM agent replaying the action refused on its previous
+    turn, or, for a hybrid (gate 2), choosing again the intention that was infeasible."""
     refused = {(e["tick"], e["agent"]) for e in ev if e["type"] == "Rejected" and e["action"] != "say"}
-    last: dict[str, tuple[int, str] | None] = {}
+    last: dict[str, tuple[int, str, bool]] = {}
     n = 0
     for line in (run_dir / "turns.jsonl").open():
         t = json.loads(line)
         if "llm" not in t:
             continue
-        act = json.dumps(next((a for a in t["actions"] if a["type"] != "say"), {}), sort_keys=True)
+        if "intention" in t["llm"]:
+            key, failed = t["llm"]["intention"], bool(t["llm"].get("infeasible"))
+        else:
+            key, failed = json.dumps(next((a for a in t["actions"] if a["type"] != "say"), {}), sort_keys=True), None
         prev = last.get(t["agent"])
-        if prev is not None and prev[1] == act and (prev[0], t["agent"]) in refused:
+        if prev is not None and prev[1] == key and (prev[2] or (prev[0], t["agent"]) in refused):
             n += 1
-        last[t["agent"]] = (t["tick"], act)
+        last[t["agent"]] = (t["tick"], key, bool(failed))
     return n
 
 
@@ -70,24 +74,37 @@ DECOYS = {"grow_lamp", "heat_lamp"}
 
 def play(brain: str, stage: int, pair: bool, days: int, personas: list[str], extra: list[str] = (), pure: bool = False,
          world: str = "worlds/rooftop.yaml", work: list[int] | None = None, partner: str | None = None,
-         partner_slot: str = "b") -> dict:
+         partner_slot: str = "b", temperature: float | None = None, stop_futile: int | None = None) -> dict:
     # A pair with a scripted partner: the partner takes one slot (slot a starts with the can), the LLM the other.
     slots = {"a": brain, "b": brain}
     if pair and partner:
         slots[partner_slot] = partner
+    # An agent with a persona is named after it (vesper-intj -> vesper), so the agents call each other
+    # by name ("MOTE, plant now") instead of "a" and "b"; a bot or an agent without persona keeps its slot.
+    ids = {"a": "a", "b": "b"}
+    if pair:
+        for who, f in zip(("a", "b"), personas):
+            if f != "none" and not (partner and who == partner_slot):
+                ids[who] = f.split("-")[0]
+        if ids["a"] == ids["b"]:
+            ids["b"] += "2"
     cmd = [str(PY), "-m", "hoshi7", "run", world, "--days", str(days), "--stage", str(stage),
-           "--out", str(OUT), "--agent", f"a={slots['a']}"]
+           "--out", str(OUT), "--agent", f"{ids['a']}={slots['a']}"]
     for x in extra:
         cmd += ["--with", x]
     if pure:
         cmd.append("--pure")
     if work:
         cmd += ["--work-hours", str(work[0]), str(work[1])]
+    if temperature is not None:
+        cmd += ["--temperature", str(temperature)]
+    if stop_futile is not None:
+        cmd += ["--stop-futile", str(stop_futile)]
     if pair:
-        cmd += ["--agent", f"b={slots['b']}"]
+        cmd += ["--agent", f"{ids['b']}={slots['b']}"]
         for who, f in zip(("a", "b"), personas):
             if not (partner and who == partner_slot) and f != "none":   # "none": the model with only a name
-                cmd += ["--persona", f"{who}=personas/{f}.txt"]
+                cmd += ["--persona", f"{ids[who]}=personas/{f}.txt"]
     p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
     run_dir = Path(p.stderr.strip().rsplit("written to ", 1)[-1])
     s = json.loads((run_dir / "summary.json").read_text())
@@ -104,13 +121,19 @@ def play(brain: str, stage: int, pair: bool, days: int, personas: list[str], ext
     if pair and partner:
         label = f"{label} +{partner}({partner_slot})"
         extra = extra or [""]
+    if temperature is not None:
+        label = f"{label} t{temperature:g}"
+        extra = extra or [""]
     return {"brain": brain, "stage": label if (extra or pure) else stage, "world": Path(world).stem,
             "water_by_day": water_by_day(ev), "kind": "pair" if pair else "solo", "days": days,
-            "personas": personas if pair else [], "run": run_dir.name,
+            "personas": personas if pair else [], "run": run_dir.name, "temperature": temperature, "stopped": s.get("stopped"),
             # Refusals of the LLM agents only, over their calls: a scripted partner's are not the model's.
             "calls": sum(a.get("llm", {}).get("calls", 0) for a in ag), "refused": sum(a["refused"] for a in ag if "llm" in a),
             "tilled": c["Tilled"], "planted": c["Planted"], "watered": c["Watered"], "harvested": c["Harvested"],
-            **side(ev), "repeats": loops(run_dir, ev), "decoys": sum(1 for e in ev if e["type"] == "Crafted" and e["recipe"] in DECOYS),
+            **side(ev), "repeats": loops(run_dir, ev),
+            # hybrid (gate 2): intentions that could not be done this hour; wasted = refused + infeasible
+            "infeasible": sum(a.get("llm", {}).get("infeasible", 0) for a in ag),
+            "wasted": sum(a["refused"] + a.get("llm", {}).get("infeasible", 0) for a in ag if "llm" in a), "decoys": sum(1 for e in ev if e["type"] == "Crafted" and e["recipe"] in DECOYS),
             "gives": c["Gave"], "can_moves": sum(1 for e in ev if e["type"] == "Gave" and e.get("item") == "can"),
             "seconds": s["seconds"], "tin": sum(a.get("llm", {}).get("tin", 0) for a in ag),
             "tout": sum(a.get("llm", {}).get("tout", 0) for a in ag),
@@ -151,6 +174,8 @@ def main() -> None:
     ap.add_argument("--partner", default=None, help="a scripted brain for one slot of each pair (scripted-water, scripted-giver, scripted-field)")
     ap.add_argument("--partner-slot", default="b", choices=["a", "b"], help="slot a starts with the can")
     ap.add_argument("--solo-days", type=int, default=1)
+    ap.add_argument("--temperature", type=float, default=None, help="sampling temperature of the LLM brains")
+    ap.add_argument("--stop-futile", type=int, default=None, metavar="DAY", help="stop a run with no farming act by the end of DAY")
     ap.add_argument("--table", action="store_true")
     a = ap.parse_args()
     if a.table:
@@ -160,11 +185,12 @@ def main() -> None:
     jobs += [(b, st, True, a.pair_days) for b in a.brain for st in a.stages for _ in range(a.pairs)]
 
     def one(j):
-        r = play(j[0], j[1], j[2], j[3], a.personas, a.extra, a.pure, a.world, a.work_hours, a.partner, a.partner_slot)
+        r = play(j[0], j[1], j[2], j[3], a.personas, a.extra, a.pure, a.world, a.work_hours, a.partner, a.partner_slot,
+                 a.temperature, a.stop_futile)
         with RESULTS.open("a") as f:
             f.write(json.dumps(r) + "\n")
         print(f"{r['kind']} {r['brain']} stage {r['stage']}: refused {r['refused']}/{r['calls']}, "
-              f"harvested {r['harvested']}, gives {r['gives']}", flush=True)
+              f"harvested {r['harvested']}, gives {r['gives']}" + (f", stopped {r['stopped']}" if r.get("stopped") else ""), flush=True)
         return r
 
     with ThreadPoolExecutor(a.parallel) as ex:

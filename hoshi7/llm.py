@@ -31,6 +31,7 @@ from .world import DIRS
 from .brains import Action, ScriptedFarmer
 from .percept import Percept
 from .view import render
+from .hybrid import INTENTIONS, OF_ACTION, Executor, describe as describe_intentions
 
 OLLAMA = "http://localhost:11434"
 # The agent's own last actions, given back each turn.
@@ -42,7 +43,12 @@ FIELD = 24
 #: Run-wide settings of the LLM brains, set by `hoshi7 run --think/--failure-rule`:
 #: think = gpt-oss reasoning effort (None: low for gpt-oss chat, nothing otherwise);
 #: failure_rule = tell the model not to repeat a failed action as it is.
-SETTINGS: dict[str, Any] = {"think": None, "failure_rule": False, "stage": None, "extra": (), "pure": False}
+SETTINGS: dict[str, Any] = {"think": None, "failure_rule": False, "stage": None, "extra": (), "pure": False,
+                            "temperature": None}
+#: Sampling temperature when none is set: chat brains take the model file's default (0.15 for
+#: mistral-small3.2), Claude brains the API's (1.0), base brains 0.7. Gate 2 amendment 1 found the
+#: brains compared at different temperatures; `--temperature` sets one for every brain of a run.
+BASE_TEMPERATURE = 0.7
 
 #: The improvements of 2026-10-05, in the order they were added; a stage has the
 #: features of every stage up to it (docs/results.md). The engine fix on names
@@ -72,7 +78,7 @@ LAST_STAGE = len(STAGES) - 1
 #: seen = the agent remembers the places it has seen, and go reaches only those (and those it met);
 #: note = a private note each hour, what it believes of the others (partner) and of the world's rules
 #: (world), heard by no one and recorded; with it, say is optional.
-EXTRA = ("present", "coords", "seen", "note")
+EXTRA = ("present", "coords", "seen", "note", "asked")
 #: Conversation lines kept when the present outweighs the talk.
 TALK_PRESENT = 8
 
@@ -84,7 +90,7 @@ TIMEOUT_S = 300
 
 
 def action_schema(exclude: frozenset[str] = frozenset(), coords: bool = False, places: list[str] | None = None,
-                  note: bool = False) -> dict[str, Any]:
+                  note: bool = False, intent: bool = False) -> dict[str, Any]:
     """An action and an optional line to say, as a JSON schema: Ollama's
     `format` makes every model answer in it. `places`: the names go may take (with `seen`);
     none known yet, go is left out."""
@@ -112,6 +118,10 @@ def action_schema(exclude: frozenset[str] = frozenset(), coords: bool = False, p
         out["properties"] = {"note": {"type": "object", "properties": {"partner": {"type": "string"}, "world": {"type": "string"}},
                                       "required": ["partner", "world"]}, **out["properties"]}
         out["required"] = ["note", "action"]
+    if intent:  # the hybrid of gate 2: an intention for the hour instead of an action (hybrid.py)
+        del out["properties"]["action"]
+        out["properties"]["intention"] = {"type": "string", "enum": list(INTENTIONS)}
+        out["required"] = ["intention" if r == "action" else r for r in out["required"]]
     return out
 
 
@@ -192,7 +202,7 @@ def rules(p: Percept, failure_rule: bool = False, features: frozenset[str] | Non
         + (f"{PRESENT_RULE}\n" if "present" in features else "")
         + (f"{SEEN_RULE}\n" if "seen" in features and "go" in features else "")
         + (f"{NOTE_RULE}\n" if "note" in features else "")
-        + f"Actions:\n{actions}"
+        + (f"Intentions:\n{describe_intentions()}" if "intent" in features else f"Actions:\n{actions}")
     )
 
 
@@ -305,6 +315,8 @@ class OllamaBrain:
         self.journal: list[str] = []
         # The turn action whose outcome the next percept will tell.
         self.pending: Action | None = None
+        # With `asked` (hybrid): the last hour was spent asking for the can; next hour tells if it came.
+        self.asking = False
         # Working memory for one run, built only from what the percepts showed:
         # the last seen state of each soil tile, and the recent conversation.
         self.field: dict[tuple[int, int], tuple[str, int, int]] = {}
@@ -320,7 +332,50 @@ class OllamaBrain:
         self.note: dict[str, str] | None = None
         self.failures = 0
 
+    def enable_intent(self) -> None:
+        """Play as the intention hybrid of gate 2: the model chooses an intention, the executor acts."""
+        self.features = self.features | {"intent"}
+        self.executor = Executor(self.me)
+
+    def decide_intent(self, p: Percept) -> list[Action]:
+        if self.example == "":
+            shown = ScriptedFarmer(self.me).decide(p)
+            first = OF_ACTION.get(shown[0]["type"], "farm") if shown else "wait"
+            self.example = f"{render(p, self.features)}\n{self.me} did: {json.dumps({'intention': first, 'say': ''})}"
+        self.settle(p)
+        self.remember(p)
+        t0 = time.perf_counter()
+        raw = self.ask(p)
+        try:
+            d = json.loads(raw)
+            intention, said = d.get("intention"), d.get("say")
+        except (ValueError, AttributeError):
+            intention, said = None, None
+        parsed = intention in INTENTIONS
+        if not parsed:
+            self.failures += 1
+            intention = "wait"
+        act, why = self.executor.act(p, intention)
+        acts: list[Action] = [act if act is not None else {"type": "wait"}]
+        if isinstance(said, str) and said.strip():
+            acts.append({"type": "say", "text": said.strip()})
+        note = read_note(raw) if "note" in self.features else None
+        if note is not None:
+            self.note = note
+        self.last = {"seconds": round(time.perf_counter() - t0, 2), "raw": raw, "parsed": parsed,
+                     "think": self.think, "failure_rule": self.failure_rule, "stage": self.stage,
+                     "extra": sorted(self.features & set(EXTRA)) + ["intent"] + (["pure"] if self.pure else []),
+                     "intention": intention, "infeasible": why if act is None else "",
+                     **({"note": note} if note is not None else {}), **getattr(self, "usage", {})}
+        done = f": {json.dumps(act, ensure_ascii=False)}" if act is not None else f" -> infeasible: {why}"
+        self.journal = (self.journal + [f"day {p.day} {p.hour % 24:02d}:00 -> {intention}{done}"])[-JOURNAL:]
+        self.pending = act  # its outcome is written on the line next hour; nothing for an infeasible one
+        self.asking = intention == "ask_can" and act is not None
+        return acts
+
     def decide(self, p: Percept) -> list[Action]:
+        if "intent" in self.features:
+            return self.decide_intent(p)
         if self.example == "":
             shown = ScriptedFarmer(self.me).decide(p)
             if "coords" in self.features:  # the example speaks the same language as the catalog
@@ -441,7 +496,11 @@ class OllamaBrain:
         if not self.journal or self.pending is None or "outcomes" not in self.features:
             return
         self.journal[-1] += outcome(p, self.pending)
-        self.pending = None
+        # An ask is a wait or a step: it has no outcome of its own, and twelve lines of "ask_can: wait"
+        # hid that the can never came (gate 2, amendment 1). With `asked`, the line says whether it did.
+        if self.asking and "asked" in self.features:
+            self.journal[-1] += " -> the can was given to you" if p.holding_can else " -> the can was not given"
+        self.pending, self.asking = None, False
 
     def ask(self, p: Percept) -> str:
         past = "\n".join(self.journal) or "(nothing yet)"
@@ -453,9 +512,9 @@ class OllamaBrain:
                 )
                 user = f"What you did lately:\n{past}\n\n{self.memory()}\n\nNow:\n{render(p, self.features)}\nWhat do you do this hour?"
                 body: dict[str, Any] = {
-                    "model": self.model, "stream": False, "format": action_schema(excluded(self.features), "coords" in self.features, self.go_places(), "note" in self.features),
+                    "model": self.model, "stream": False, "format": action_schema(excluded(self.features), "coords" in self.features, self.go_places(), "note" in self.features, "intent" in self.features),
                     "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                    "options": {"num_ctx": 8192},
+                    "options": {"num_ctx": 8192, **({} if SETTINGS["temperature"] is None else {"temperature": SETTINGS["temperature"]})},
                 }
                 if self.think is not None:
                     body["think"] = self.think
@@ -467,8 +526,8 @@ class OllamaBrain:
                 f"=== now ===\n{render(p, self.features)}\n{self.me} did: "
             )
             body = {
-                "model": self.model, "stream": False, "raw": True, "prompt": doc, "format": action_schema(excluded(self.features), "coords" in self.features, self.go_places(), "note" in self.features),
-                "options": {"num_ctx": 8192, "temperature": 0.7},
+                "model": self.model, "stream": False, "raw": True, "prompt": doc, "format": action_schema(excluded(self.features), "coords" in self.features, self.go_places(), "note" in self.features, "intent" in self.features),
+                "options": {"num_ctx": 8192, "temperature": BASE_TEMPERATURE if SETTINGS["temperature"] is None else SETTINGS["temperature"]},
             }
             return post("/api/generate", body).get("response", "")
         except (OSError, ValueError) as err:
@@ -479,7 +538,8 @@ def strict(schema: dict[str, Any]) -> dict[str, Any]:
     """The action schema for the Claude API's structured outputs: every object closed."""
     out = json.loads(json.dumps(schema))
     out["additionalProperties"] = False
-    out["properties"]["action"]["additionalProperties"] = False
+    if "action" in out["properties"]:
+        out["properties"]["action"]["additionalProperties"] = False
     if "note" in out["properties"]:
         out["properties"]["note"]["additionalProperties"] = False
     return out
@@ -514,7 +574,10 @@ class ClaudeBrain(OllamaBrain):
                 model=self.model, max_tokens=1024 if "haiku" in self.model else 8000,
                 system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
                 messages=[{"role": "user", "content": user}],
-                output_config={"format": {"type": "json_schema", "schema": strict(action_schema(excluded(self.features), "coords" in self.features, self.go_places(), "note" in self.features))}},
+                output_config={"format": {"type": "json_schema", "schema": strict(action_schema(excluded(self.features), "coords" in self.features, self.go_places(), "note" in self.features, "intent" in self.features))}},
+                # The 1.x SDK dropped sampling parameters from its signature; the API still honours a
+                # temperature on Haiku 4.5, while Sonnet 5.5 rejects any non-default value (a 400).
+                **({} if SETTINGS["temperature"] is None else {"extra_body": {"temperature": SETTINGS["temperature"]}}),
             )
         except Exception as err:  # noqa: BLE001 — network, rate limit, refusal: the turn waits
             return f"error: {err}"

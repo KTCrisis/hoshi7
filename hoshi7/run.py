@@ -19,6 +19,7 @@ from typing import Any, Callable
 
 from .brains import BRAINS, Brain
 from .llm import make as make_llm
+from .hybrid import RandomIntent
 from .events import Event, Gave, Harvested, Rejected, Said, from_dict
 from .percept import perceive
 from .world import World
@@ -34,6 +35,16 @@ def brain(kind: str, me: str, persona: str = "") -> Brain:
     """A scripted brain by name, or an Ollama model as `chat:<model>` or `base:<model>`."""
     if kind in BRAINS:
         return BRAINS[kind](me)
+    if kind.startswith("intent:"):  # the intention hybrid of gate 2 (hybrid.py)
+        inner = kind.split(":", 1)[1]
+        if inner == "random":
+            return RandomIntent(me)
+        llm = make_llm(inner, me, persona)
+        if llm is None:
+            raise ValueError(f"unknown brain {inner!r} after intent:")
+        llm.enable_intent()
+        llm.kind = kind
+        return llm
     llm = make_llm(kind, me, persona)
     if llm is None:
         raise ValueError(f"unknown brain {kind!r}: one of {', '.join(BRAINS)}, or chat:<model>, base:<model>, claude:<model>")
@@ -43,15 +54,51 @@ def brain(kind: str, me: str, persona: str = "") -> Brain:
 Turned = Callable[[World, dict[str, Any]], None]
 
 
-def play(spec: dict[str, Any], brains: dict[str, Brain], *, loop: int = 1, seed: int = 0, days: int | None = None, on_turn: Turned | None = None) -> tuple[World, list[dict[str, Any]]]:
+def farmed(log: list[Event], agents: set[str], seeds: set[str]) -> int:
+    """Farming acts of these agents in the log: tilled, planted, harvested, seeds made back, and a watering of
+    a planted tile that had not been watered that day (the count of tools/curve.py)."""
+    n = 0
+    planted: set[tuple[int, int]] = set()
+    watered: set[tuple[int, int]] = set()
+    for e in log:
+        kind, who = type(e).__name__, getattr(e, "agent", None)
+        if kind == "DayStarted":
+            watered.clear()
+        elif kind == "Planted":
+            planted.add((e.x, e.y))  # type: ignore[attr-defined]
+        elif kind == "Harvested":
+            planted.discard((e.x, e.y))  # type: ignore[attr-defined]
+        if who not in agents:
+            if kind == "Watered":
+                watered.add((e.x, e.y))  # type: ignore[attr-defined]
+            continue
+        if kind in ("Tilled", "Planted", "Harvested") or (kind == "Crafted" and getattr(e, "recipe", None) in seeds):
+            n += 1
+        elif kind == "Watered":
+            tile = (e.x, e.y)  # type: ignore[attr-defined]
+            n += tile in planted and tile not in watered
+            watered.add(tile)
+    return n
+
+
+def play(spec: dict[str, Any], brains: dict[str, Brain], *, loop: int = 1, seed: int = 0, days: int | None = None, on_turn: Turned | None = None,
+         stop_futile: int | None = None) -> tuple[World, list[dict[str, Any]]]:
+    """`stop_futile`: at the end of that day, a run whose model agents (any brain not scripted) have made no
+    farming act since the start stops, `w.stopped = "futile"` (gate 2, amendment 3)."""
     w = World.create(spec, loop=loop, seed=seed)
     names = list(brains)
     for a in names:
         w.join(a)
     since = {a: len(w.log) for a in names}
     turns: list[dict[str, Any]] = []
+    models = {a for a, b in brains.items() if b.kind not in BRAINS}
+    seeds = {c["seeds"] for c in spec.get("crops", {}).values()}
+    w.stopped = None  # type: ignore[attr-defined]
     # `days`: stop when that many days have been played, whatever the goal.
     while w.state.outcome is None and (days is None or w.state.day <= days):
+        if stop_futile is not None and models and w.state.day > stop_futile and farmed(w.log, models, seeds) == 0:
+            w.stopped = "futile"  # type: ignore[attr-defined]
+            break
         for a in order(names, w.state.tick):
             at, start = len(w.log), since[a]
             p = perceive(w, a, start)
@@ -93,7 +140,8 @@ def summarize(w: World, turns: list[dict[str, Any]], brains: dict[str, Brain], s
                              "think": calls[0].get("think") if calls else None, "failure_rule": calls[0].get("failure_rule") if calls else None,
                              "stage": calls[0].get("stage") if calls else None, "extra": calls[0].get("extra", []),
                              "tin": sum(c.get("tin", 0) for c in calls), "tout": sum(c.get("tout", 0) for c in calls),
-                             "tcw": sum(c.get("tcw", 0) for c in calls), "tcr": sum(c.get("tcr", 0) for c in calls)}
+                             "tcw": sum(c.get("tcw", 0) for c in calls), "tcr": sum(c.get("tcr", 0) for c in calls),
+                             "infeasible": sum(1 for c in calls if c.get("infeasible"))}
     return {
         "world": s.world,
         "plane": s.plane,
@@ -105,6 +153,7 @@ def summarize(w: World, turns: list[dict[str, Any]], brains: dict[str, Brain], s
         "ticks": s.tick,
         "goal": s.objective,
         "harvested": s.harvested,
+        "stopped": getattr(w, "stopped", None),
         "agents": per,
         "events": len(w.log),
         "seconds": round(seconds, 3),
@@ -154,16 +203,18 @@ def read_events(path: Path) -> list[Event]:
         return [from_dict(json.loads(line)) for line in f if line.strip()]
 
 
-def run(spec: dict[str, Any], agents: dict[str, str], *, loop: int = 1, seed: int = 0, out: Path | None = None, days: int | None = None, personas: dict[str, str] | None = None) -> dict[str, Any]:
+def run(spec: dict[str, Any], agents: dict[str, str], *, loop: int = 1, seed: int = 0, out: Path | None = None, days: int | None = None, personas: dict[str, str] | None = None,
+        stop_futile: int | None = None) -> dict[str, Any]:
     brains: dict[str, Brain] = {a: brain(kind, a, (personas or {}).get(a, "")) for a, kind in agents.items()}
     t0 = time.perf_counter()
     live = Live(out) if out is not None else None
     if out is not None:  # who plays, for the viewer, before the first turn
         from .llm import SETTINGS
         meta = {"world": spec["name"], "agents": agents, "personas": personas or {}, "days": days,
-                "stage": SETTINGS.get("stage"), "extra": list(SETTINGS.get("extra") or ()), "pure": SETTINGS.get("pure")}
+                "stage": SETTINGS.get("stage"), "extra": list(SETTINGS.get("extra") or ()), "pure": SETTINGS.get("pure"),
+                "temperature": SETTINGS.get("temperature"), "stop_futile": stop_futile}
         (out / "meta.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    w, turns = play(spec, brains, loop=loop, seed=seed, days=days, on_turn=live)
+    w, turns = play(spec, brains, loop=loop, seed=seed, days=days, on_turn=live, stop_futile=stop_futile)
     if live is not None:
         live.close(w)
     summary = summarize(w, turns, brains, time.perf_counter() - t0)

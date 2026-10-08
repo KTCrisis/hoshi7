@@ -393,3 +393,17 @@ def test_with_note_the_model_writes_a_private_note_first_shown_back_next_hour(mo
 def test_without_note_nothing_changes():
     s = llm.action_schema()
     assert "note" not in s["properties"] and s["required"] == ["action", "say"]
+
+
+def test_temperature_is_sent_only_when_set(monkeypatch):
+    seen = []
+    monkeypatch.setattr(llm, "post", lambda path, body: seen.append(body) or {"message": {"content": "x"}, "response": "x"})
+    w = World.create(ROOFTOP)
+    w.join("ada")
+    for t in (None, 1.0):
+        monkeypatch.setitem(llm.SETTINGS, "temperature", t)
+        for mode in ("chat", "base"):
+            llm.OllamaBrain("ada", "m", mode).decide(perceive(w, "ada"))
+    chat_default, base_default, chat_set, base_set = (b["options"] for b in seen)
+    assert "temperature" not in chat_default and base_default["temperature"] == llm.BASE_TEMPERATURE
+    assert chat_set["temperature"] == 1.0 and base_set["temperature"] == 1.0

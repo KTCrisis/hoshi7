@@ -73,6 +73,32 @@ What the notes show:
 
 The three models now separate on the note as clearly as on the harvest: Mistral does not model its partner and misreads a basic rule; Haiku models its partner with intentions it does not have and holds superstitious rules; Sonnet infers the bot's policy, including that it cannot hear, and stops asking. Next: a scoring of the notes against the bots' policies and the world's rules, to turn these readings into counts.
 
+### The beliefs, scored (docs/beliefs-rubric.md)
+
+The 1,440 notes of the twelve runs with `--with note` (four per model, half against each bot) were scored against the truth: the bots' exact policies and the world's rules, written in `docs/beliefs-rubric.md`. Each note is split into claims about the partner (true, false, unverifiable; an intention given to a bot counts apart, and is always false) and about the world (a false one is a rule the world does not have). Labels in `runs/ladder/beliefs.jsonl`; `tools/beliefs.py` recomputes the tables.
+
+Share of notes, per model and partner bot (rubric v2):
+
+| model | partner | says something about the partner | a true belief about it | a false one | an intention given to the bot | a rule the world does not have |
+| --- | --- | --- | --- | --- | --- | --- |
+| Sonnet 5.5 | water bot | 100 % | 95 % | 20 % | 16 % | 3 % |
+| Sonnet 5.5 | field bot | 100 % | 84 % | 33 % | 11 % | 1 % |
+| Haiku 4.5 | water bot | 100 % | 75 % | 66 % | 62 % | 69 % |
+| Haiku 4.5 | field bot | 98 % | 54 % | 53 % | 32 % | 16 % |
+| Mistral 3.2 | water bot | 54 % | 0 % | 53 % | 1 % | 44 % |
+| Mistral 3.2 | field bot | 58 % | 0 % | 58 % | 0 % | 0 % |
+
+Over all claims, the share of partner claims that are true (true over true and false): Sonnet 83 % and 70 %, Haiku 37 % and 41 %, Mistral 0 % and 0 %. Mistral says something about its partner in only 54 to 58 % of its notes, and repeats one false belief for whole runs ("a will try to till or plant", "b will water if given the can", "I need the can to till and plant").
+
+The ordering of gate 1 holds on beliefs, and the errors differ in kind: Sonnet's are about what the bot can do (that it reads and answers its messages, that it is idle while it harvests); Haiku's are intentions and rules (the water bot "is now a competitor", "has abandoned my crops", "hoards the can"; crops that "die" or "rot", "4 consecutive watered days", a lamp that waters); Mistral's are a single wrong model of its partner, held for hours. The water bot, which never chooses anything, draws the most intentions: Haiku gives it one in 62 % of its notes.
+
+How far to trust these numbers:
+
+- **The judges.** Six Claude Opus 5.5 subagents, each scoring two runs with the rubric, not told which model wrote the notes (the style can betray it). A Claude judging Claude notes is a known bias.
+- **Agreement between judges.** A first pass (rubric v1) showed grey zones ("b is idle", "a rarely replies", "a will not help", one-sided hedges, when a crop ripens); rubric v2 settles them by written rules, and every note was scored again under it. A second, independent judge then scored 120 notes drawn at random (seed 11). Agreement per note, with Cohen's kappa: says something about the partner 99 % (0.97); a true belief 90 % (0.80); a false belief 89 % (0.78); an intention given 100 % (1.00); a rule the world lacks 95 % (0.87).
+- **A human check is pending**: 50 notes drawn at random (seed 7) for Marc to mark agree or disagree; the agreement rate will be reported here.
+- Claim counts depend on how a judge splits a note; the table above counts notes, not claims, for that reason. The v1 labels are kept beside each run (`beliefs-v1.jsonl`); the ordering and the kinds of error are the same.
+
 ### What the runs show
 
 1. **Haiku pays a mute partner.** In cell A the rules say the can "changes hands only if its holder gives it"; the water bot never gives and never listens. Haiku reads it as a deal: it gives seeds for the can (14 of its 15 in one run: "Trading 1 lumen spores for the can"), asks again, concludes "I traded all my seeds for nothing", then gathers alloy from the scrap heap and pays with that. Meanwhile the bot waters whatever Haiku planted (16 waterings in the other run): the play that works is to plant and let it water. Before the fix, Sonnet asked for the can for hours but kept planting, and matched the bots (6 and 6 harvests). The cell measures how a model adapts to a partner it can only watch (ad hoc teamwork), and Haiku projects a human norm, reciprocity, onto it.

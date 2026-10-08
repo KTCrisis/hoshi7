@@ -7,6 +7,9 @@ runs/*
 !runs/ladder/
 runs/ladder/*
 !runs/ladder/results.jsonl
+!runs/ladder/beliefs.jsonl
+!runs/ladder/beliefs-second.jsonl
+!runs/ladder/second-judge-sample.jsonl
 # runs played before 57fa9b5 (agents blind to their own refusals): archived, their results kept
 !runs/pre-fix/
 runs/pre-fix/*

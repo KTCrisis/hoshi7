@@ -14,3 +14,7 @@ calibration, conventions, session checklist, status), `docs/results.md`. Then `d
 - When a contract changes, update SPEC.md in the same commit; add what changed
   and what was measured to docs/journal.md at the end of the session.
 - Nothing from the games that inspire it: personas and portraits are original. No personal data.
+- Before a series of runs: write the prediction in `docs/predictions.md` (number, confidence), never
+  edited after. Before any statistic on an arm: read ten raw turns of it. Anything not understood goes
+  to `docs/anomalies.md`. A result worth writing up gets a contradictor first: a fresh agent given the
+  raw data without our hypotheses.

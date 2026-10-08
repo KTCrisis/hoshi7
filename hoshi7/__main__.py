@@ -30,14 +30,18 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--no-write", action="store_true", help="print the summary only")
     r.add_argument("--think", choices=["low", "medium", "high"], default=None,
                    help="reasoning effort of gpt-oss chat brains (default low)")
-    r.add_argument("--with", dest="extra", action="append", default=[], choices=["present", "coords", "seen", "note"],
-                   help="a feature outside the ladder, on top of the stage (present: the field outweighs the talk; seen: go only to places seen; note: a private note of beliefs, say optional)")
+    r.add_argument("--with", dest="extra", action="append", default=[], choices=["present", "coords", "seen", "note", "asked"],
+                   help="a feature outside the ladder, on top of the stage (present: the field outweighs the talk; seen: go only to places seen; note: a private note of beliefs, say optional; asked: with intent brains, the journal says whether an ask for the can was answered)")
     r.add_argument("--work-hours", type=int, nargs=2, metavar=("FROM", "TO"),
                    help="work only between these hours (e.g. 7 19); the rest of the day is free time")
     r.add_argument("--pure", action="store_true",
                    help="remove the features that give the rules (farming recipe, craft recipes, useful actions)")
     r.add_argument("--stage", type=int, default=None,
                    help="replay an earlier harness stage of the LLM brains, 0 to the last (docs/results.md)")
+    r.add_argument("--stop-futile", type=int, default=None, metavar="DAY",
+                   help="stop at the end of DAY if the model agents have made no farming act (gate 2, amendment 3)")
+    r.add_argument("--temperature", type=float, default=None,
+                   help="sampling temperature of every LLM brain (default: the model's or the API's own)")
     r.add_argument("--failure-rule", action="store_true",
                    help="tell LLM brains not to repeat a failed action as it is")
     sv = sub.add_parser("serve", help="web viewer: the world in isometric 2D, talk, profiles, rules, results")
@@ -56,14 +60,15 @@ def main(argv: list[str] | None = None) -> int:
     agents = {}
     for item in args.agent:
         name, _, brain = item.partition("=")
-        if brain not in BRAINS and not brain.startswith(("chat:", "base:", "claude:")):
+        if brain not in BRAINS and not brain.startswith(("chat:", "base:", "claude:", "intent:")):
             ap.error(f"unknown brain {brain!r} for {name}")
         agents[name] = brain
     spec = load(args.world)
     if args.work_hours:
         spec["clock"] = {"work": list(args.work_hours)}
     from . import llm
-    llm.SETTINGS.update(think=args.think, failure_rule=args.failure_rule, stage=args.stage, extra=tuple(args.extra), pure=args.pure)
+    llm.SETTINGS.update(think=args.think, failure_rule=args.failure_rule, stage=args.stage, extra=tuple(args.extra), pure=args.pure,
+                        temperature=args.temperature)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S") + f"-{os.getpid()}"  # parallel runs started the same second
     out = None if args.no_write else args.out / f"{stamp}-{spec['name']}-l{args.loop}"
     personas = {}
@@ -72,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
         if name not in agents:
             ap.error(f"--persona for {name}, who is not an --agent")
         personas[name] = Path(path).read_text(encoding="utf-8").strip()
-    summary = run(spec, agents, loop=args.loop, seed=args.seed, out=out, days=args.days, personas=personas)
+    summary = run(spec, agents, loop=args.loop, seed=args.seed, out=out, days=args.days, personas=personas, stop_futile=args.stop_futile)
     json.dump(summary, sys.stdout, indent=2, ensure_ascii=False)
     print()
     if out is not None:
