@@ -258,9 +258,31 @@ def snapshot(rel: str, at: int | None = None) -> dict[str, Any]:
             "stale": not summary and time.time() - (run / "events.jsonl").stat().st_mtime > 120}
 
 
+#: The learning curves of the hybrid cells, computed once per state of results.jsonl (a replay of each run).
+_CURVES: dict[str, Any] = {"mtime": None, "cells": {}}
+
+
+def learning(cell: tuple, rs: list[dict[str, Any]], mtime: float) -> dict[str, list]:
+    """Per day, the mean share of opportunities taken and of repeats after a failed intention (hoshi7/curve.py),
+    for a hybrid cell; empty for the others, whose turns carry no intention."""
+    if _CURVES["mtime"] != mtime:
+        _CURVES.update(mtime=mtime, cells={})
+    if cell not in _CURVES["cells"]:
+        out: dict[str, list] = {}
+        if cell[1].startswith("intent:") and cell[0] == "pair":
+            from .curve import curve, mean
+            dirs = [RUNS / "ladder" / r["run"] for r in rs if (RUNS / "ladder" / r["run"] / "events.jsonl").exists()]
+            if dirs:
+                m = mean([curve(d) for d in dirs])
+                out = {"taken": [r.get("taken_rate") for r in m], "repeat_fail": [r.get("repeat_after_fail") for r in m]}
+        _CURVES["cells"][cell] = out
+    return _CURVES["cells"][cell]
+
+
 def results() -> list[dict[str, Any]]:
     path = RUNS / "ladder" / "results.jsonl"
     rows = [json.loads(l) for l in path.open()] if path.exists() else []
+    mtime = path.stat().st_mtime if path.exists() else 0.0
     by: dict[tuple, list] = defaultdict(list)
     for r in rows:
         tag = "" if r.get("personas", []) in ([], ["vesper", "ledger7"]) else " " + "/".join(r["personas"])
@@ -274,7 +296,8 @@ def results() -> list[dict[str, Any]]:
                     "refused": sum(r["refused"] for r in rs) / max(1, sum(r["calls"] for r in rs)),
                     "planted": sum(r["planted"] for r in rs) / n, "harvested": sum(r["harvested"] for r in rs) / n,
                     "can": sum(r["can_moves"] for r in rs) / n, "usd": cost,
-                    **{k: sum(r.get(k, 0) for r in rs) / n for k in ("repeats", "alloy", "copper", "decoys", "examined", "seeds_made")}})
+                    **{k: sum(r.get(k, 0) for r in rs) / n for k in ("repeats", "alloy", "copper", "decoys", "examined", "seeds_made")},
+                    "learning": learning((kind, brain, stage, days), rs, mtime)})
     return out
 
 

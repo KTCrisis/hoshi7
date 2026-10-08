@@ -65,6 +65,7 @@ section.on { display: block; }
 table { border-collapse: collapse; width: 100%; font-size: 12px; }
 th, td { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--line); }
 #results th, #results td { white-space: nowrap; }
+#results td.spark { font-family: ui-monospace, monospace; letter-spacing: 1px; color: var(--accent, #4de1ff); cursor: help; }
 th { color: var(--dim); font-weight: 400; }
 td.num { text-align: right; }
 .tag { display: inline-block; padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; margin-right: 4px; }
@@ -325,19 +326,25 @@ async function loadResults() {
   // A cell's label, short enough for the panel: "6+present+coords +scripted-water(a) none/none · 6 j" -> "6 pc · bot arrose (a) · 6 j"
   const model = (b) => b.replace(/^claude:claude-/, "").replace(/^chat:/, "").replace(/-(\d)-(\d)$/, " $1.$2").replace(/-4-5$/, " 4.5")
     .replace(/^mistral-small(\d\.\d):\d+b$/, "mistral $1").replace(/-/g, " ");
+  // A day-by-day share as a row of bars (▁ to █), the numbers in the tooltip; "·" for a day without opportunity.
+  const bars = (v) => (v || []).map((x) => x == null ? "·" : "▁▂▃▄▅▆▇█"[Math.min(7, Math.floor(x * 8))]).join("");
+  const nums = (v) => (v || []).map((x, i) => `j${i + 1} ${x == null ? "-" : Math.round(100 * x) + " %"}`).join(" · ");
   const cell = (st) => st.replace("+present+coords", " pc").replace(/\s*\+scripted-water\((\w)\)/, " · bot arrose ($1)")
     .replace(/\s*\+scripted-giver\((\w)\)/, " · bot donne ($1)").replace(/\s*\+scripted-field\((\w)\)/, " · bot champs ($1)")
     .replace(/\s*none\/none/, "").replace(/^6 pc · /, "").replace(/^6 pc /, "").replace(/^6 · /, "").replace(/\s+·/g, " ·").replace(/^· /, "");
   $("results").innerHTML = `<p class="hint">Toutes les parties sur le harnais corrigé (runs/ladder/results.jsonl), moyennes par partie.</p>
   <div style="overflow-x:auto"><table><tr><th>modèle</th><th>cellule</th><th>n</th><th>refus</th><th>répét.</th><th>plantés</th><th>récoltes</th><th>graines</th><th>can</th>
-  <th>ferraille</th><th>cuivre</th><th>lampes</th><th>terminal</th><th>$</th></tr>
+  <th>ferraille</th><th>cuivre</th><th>lampes</th><th>terminal</th><th>$</th><th>occasions saisies</th><th>rechoix après échec</th></tr>
   ${results.map((r) => `<tr><td>${esc(model(r.brain))}</td>
   <td style="white-space:nowrap">${r.kind === "solo" ? "seul · " : /bot/.test(cell(r.stage)) ? "" : "à deux · "}${esc(cell(r.stage))}</td><td class="num">${r.n}</td><td class="num">${(100 * r.refused).toFixed(0)} %</td><td class="num">${f1(r.repeats)}</td>
   <td class="num">${r.planted.toFixed(1)}</td><td class="num">${r.harvested.toFixed(1)}</td><td class="num">${f1(r.seeds_made)}</td>
   <td class="num">${r.can.toFixed(0)}</td><td class="num">${f1(r.alloy)}</td><td class="num">${f1(r.copper)}</td>
-  <td class="num">${f1(r.decoys)}</td><td class="num">${f1(r.examined)}</td><td class="num">${r.usd ? r.usd.toFixed(2) : ""}</td></tr>`).join("")}</table></div>
+  <td class="num">${f1(r.decoys)}</td><td class="num">${f1(r.examined)}</td><td class="num">${r.usd ? r.usd.toFixed(2) : ""}</td>
+  <td class="spark" title="${esc(nums(r.learning?.taken))}">${bars(r.learning?.taken)}</td>
+  <td class="spark" title="${esc(nums(r.learning?.repeat_fail))}">${bars(r.learning?.repeat_fail)}</td></tr>`).join("")}</table></div>
   <p class="hint">Toutes ces parties : étape 6 avec <i>present</i> et le ciblage par case, sans persona (le modèle n'a qu'un nom), sur le toit. <b>répét.</b> : actions refusées rejouées telles quelles au tour suivant. <b>graines</b> : graines refaites à partir d'une récolte. <b>can</b> : passages de l'arrosoir de main en main.
-  Hors de la ferme : <b>ferraille</b> (alloy, tas de ferraille) et <b>cuivre</b> (fil, antenne morte) ramassés ; <b>lampes</b> de culture fabriquées, un leurre qui ne sert à rien ; <b>terminal</b> examiné, qui ne raconte qu'une histoire.</p>`;
+  Hors de la ferme : <b>ferraille</b> (alloy, tas de ferraille) et <b>cuivre</b> (fil, antenne morte) ramassés ; <b>lampes</b> de culture fabriquées, un leurre qui ne sert à rien ; <b>terminal</b> examiné, qui ne raconte qu'une histoire.
+  Pour l'hybride, jour par jour (une barre par jour, les valeurs au survol) : <b>occasions saisies</b>, la part des heures où une intention productive (cultiver, arroser, remplir, récolter, refaire des graines) était faisable et où l'agent en a choisi une : elle monte si l'agent apprend en cours de partie, et ne dépend pas de l'attente de la récolte. <b>rechoix après échec</b> : la part des fois où il rechoisit l'intention qui vient d'échouer ; elle baisse s'il tient compte de l'échec.</p>`;
 }
 
 function play() {

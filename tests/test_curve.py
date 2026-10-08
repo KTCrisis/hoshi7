@@ -1,8 +1,6 @@
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
-from curve import per_day, reference, reference_slots  # noqa: E402
+from hoshi7.curve import opportunities, per_day, reference, reference_slots
 
 
 def ev(t, **kw):
@@ -75,3 +73,46 @@ def test_a_model_that_farms_plays_on():
     spec = load(Path(__file__).resolve().parent.parent / "worlds" / "rooftop.yaml")
     w, _ = play(spec, {"a": BRAINS["scripted-water"]("a"), "b": Farms("b")}, days=6, stop_futile=2)
     assert w.stopped is None and w.state.day > 6
+
+
+class Intends:
+    """A hybrid stand-in: chooses one fixed intention each hour, or the first productive one it can do."""
+    kind = "intent:test"
+
+    def __init__(self, me: str, intention: str | None) -> None:
+        from hoshi7.hybrid import Executor
+        self.me, self.intention, self.ex, self.last = me, intention, Executor(me), {}
+
+    def decide(self, p):
+        from hoshi7.curve import PRODUCTIVE
+        choices = [self.intention] if self.intention else [*PRODUCTIVE, "wait"]
+        for i in choices:
+            act, why = self.ex.act(p, i)
+            if act is not None or self.intention:
+                self.last = {"seconds": 0.0, "parsed": True, "intention": i, "infeasible": why}
+                return [act or {"type": "wait"}]
+
+
+def opps(intention):
+    from hoshi7 import load
+    from hoshi7.brains import BRAINS
+    from hoshi7.run import play
+    spec = load(Path(__file__).resolve().parent.parent / "worlds" / "rooftop.yaml")
+    w, turns = play(spec, {"a": BRAINS["scripted-water"]("a"), "b": Intends("b", intention)}, days=2)
+    return opportunities([e.to_dict() for e in w.log], turns, {"b"})
+
+
+def test_an_agent_that_waits_takes_no_opportunity():
+    days = opps("wait")
+    assert sum(d["open"] for d in days) > 0 and all(d["taken"] == 0 for d in days)
+
+
+def test_an_agent_that_does_the_productive_thing_takes_them_all():
+    days = opps(None)
+    assert all(d["taken_rate"] == 1 for d in days if d["open"])
+
+
+def test_choosing_again_what_just_failed_is_counted():
+    days = opps("water")   # the field slot never holds the can: water is infeasible every hour
+    assert all(d["repeat_after_fail"] == 1 for d in days if d["repeat_after_fail"] is not None)
+    assert any(d["repeat_after_fail"] is not None for d in days)

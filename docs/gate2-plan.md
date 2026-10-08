@@ -206,6 +206,13 @@ the same evening under amendment 1, and is reported under it.
   and refusals per hour. Question: does the ratio rise as the days pass (the agent learns the rules
   during the run) or stay flat (it repeats)? On six-day runs it is read on the acts, not the harvest;
   it becomes the main curve of gates 4 to 6 on runs of several crop cycles.
+- **Exploratory: the opportunities taken** (`hoshi7/curve.py`, shown in the viewer's results). For a hybrid
+  agent, each hour: is a productive intention (farm, water, refill, harvest, make_seeds) feasible, as the
+  executor says on the percept replayed from the log, and did the agent choose one? Per day, the share
+  taken, and the share of hours it chose again an intention that had just failed. Hours with nothing to do
+  drop out: Sonnet, its seeds all planted by day 3, has 4 open hours on day 3 and none on day 4; an agent
+  that keeps its seeds (Haiku at 0.15 held 14 of 15 all game) has an open hour every hour, since the goal
+  runs to day 28 and planting stays worth doing from where it stands.
 - **A run that cannot pay is stopped (futility rule).** At the end of day 2, if the model agents have
   made no farming act since the start, the run stops and is recorded as `stopped: futile` with what it
   had; it is never dropped from an analysis, and counts as its harvest so far. Rationale, read on the
