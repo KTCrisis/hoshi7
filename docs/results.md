@@ -226,9 +226,13 @@ Hybrid, private note on, no bot: VESPER (keeps the can, speaks rarely) holds the
 
 ### A computed decision (2026-10-08)
 
-A version whose decision is computed from the belief (Velens, not part of this repository) harvests 7
-in each of four runs with Claude Haiku 5.5, cell A, at 0.05 $ a run: the level of the scripted bots,
-with no run under 6, below Sonnet's 8. Reported here as a vendor result: its method is not published.
+A version whose decision is computed entirely by code from the belief (Velens, not part of this
+repository) harvests 7 in cell A. **This says nothing about the model.** The model there only speaks
+and writes its note, and the water bot does not listen: the four runs played with Claude Haiku 5.5 are
+identical (7, 7, 7, 7), one run replayed four times, and the same code with no model at all would also
+harvest 7, the scripted bots' score. What a model adds to such a module is still to be measured: a
+version where code sets what is always right and the model chooses among what is not. Reported as a
+vendor result; its method is not published.
 
 ### The optimum's ceiling: an upper bound on the pair's harvest (2026-10-09, tools/bound.py)
 
